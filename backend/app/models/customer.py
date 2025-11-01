@@ -17,7 +17,7 @@ from ..core.database import Base
 
 class Customer(Base):
     """
-    Customer model - represents a client/company in the system
+    Customer model - represents a client/company in the system - een folder per klant word aangemaakt op google drive
     
     ✅ WORKSPACE SUPPORT:
     - Each customer belongs to one workspace

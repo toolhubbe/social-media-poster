@@ -3,7 +3,7 @@ Event Model - Database model voor events tabel
 Bestandslocatie: social_media_poster_backend/app/models/event.py
 Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/models/event.py
 
-✅ UPDATED: Workspace support added - events now belong to a user's workspace
+✅ UPDATED: Workspace support added - events now belong to a user's workspace - een klant kan meerdere events hebben
 """
 
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean
