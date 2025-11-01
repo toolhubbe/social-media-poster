@@ -7,6 +7,8 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/schemas/cust
 
 Pydantic schemas voor request/response validation
 ✅ FIXED: Updated created_by field to match database structure
+✅ NEW: Added address fields (street, house_number, postal_code, city, country)
+✅ NEW: Added notes field
 """
 
 from pydantic import BaseModel, EmailStr, Field, validator
@@ -22,6 +24,17 @@ class CustomerBase(BaseModel):
     last_name: Optional[str] = None
     company_name: Optional[str] = None
     phone: Optional[str] = None
+    
+    # ✨ NEW: Address fields
+    street: Optional[str] = None
+    house_number: Optional[str] = None
+    house_number_addition: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = "Nederland"  # Default to Nederland
+    
+    # ✨ NEW: Notes field
+    notes: Optional[str] = None
 
 
 class CustomerCreate(CustomerBase):
@@ -32,6 +45,22 @@ class CustomerCreate(CustomerBase):
         if v is not None and len(v.strip()) == 0:
             raise ValueError('Field cannot be empty string')
         return v
+    
+    @validator('street', 'city', 'postal_code')
+    def not_empty_address(cls, v):
+        """Validate address fields are not empty strings"""
+        if v is not None and len(v.strip()) == 0:
+            raise ValueError('Address field cannot be empty string')
+        return v
+    
+    @validator('house_number')
+    def validate_house_number(cls, v):
+        """Validate house number if provided"""
+        if v is not None:
+            v = v.strip()
+            if len(v) == 0:
+                raise ValueError('House number cannot be empty string')
+        return v
 
 
 class CustomerUpdate(BaseModel):
@@ -41,6 +70,18 @@ class CustomerUpdate(BaseModel):
     last_name: Optional[str] = None
     company_name: Optional[str] = None
     phone: Optional[str] = None
+    
+    # ✨ NEW: Address fields (all optional for update)
+    street: Optional[str] = None
+    house_number: Optional[str] = None
+    house_number_addition: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    
+    # ✨ NEW: Notes field
+    notes: Optional[str] = None
+    
     status: Optional[str] = None
     
     @validator('status')
@@ -54,7 +95,7 @@ class CustomerUpdate(BaseModel):
 
 class CustomerResponse(CustomerBase):
     """Schema for customer response
-    ✅ UPDATED: Matches workspace-based architecture"""
+    ✅ UPDATED: Matches workspace-based architecture with address fields"""
     customer_id: UUID
     workspace_id: UUID  # ✅ Required - customer always belongs to workspace
     created_by: Optional[UUID] = None  # ✅ User who created this customer
@@ -85,6 +126,19 @@ class CustomerSummary(BaseModel):
     email: str
     company_name: Optional[str] = None
     full_name: str
+    
+    class Config:
+        from_attributes = True
+
+
+class CustomerDetailResponse(CustomerResponse):
+    """Extended customer response with computed fields"""
+    full_name: str
+    display_name: str
+    full_address: Optional[str] = None
+    has_complete_address: bool
+    event_count: int
+    created_by_user_name: str
     
     class Config:
         from_attributes = True

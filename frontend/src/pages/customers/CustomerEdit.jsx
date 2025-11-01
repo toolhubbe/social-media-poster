@@ -1,45 +1,74 @@
 /**
- * Customer Create Page
+ * Customer Edit Page
  * 
- * Bestandslocatie: frontend/src/pages/customers/CustomerCreate.jsx
- * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerCreate.jsx
+ * Bestandslocatie: frontend/src/pages/customers/CustomerEdit.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerEdit.jsx
  * 
- * Formulier voor het aanmaken van nieuwe klanten
- * ✅ FIXED: Matched form fields to backend schema
- * ✅ NEW: Complete address fields (street, house_number, postal_code, city, country)
- * ✅ NEW: Notes field for general customer information
+ * Bewerkingsformulier voor bestaande klanten
+ * ✅ Full address fields support
+ * ✅ Notes field support
+ * ✅ Pre-filled with existing data
  */
 
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
-const CustomerCreate = () => {
+const CustomerEdit = () => {
+  const { customerId } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('returnTo');
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
-    // Basic info
     first_name: '',
     last_name: '',
     company_name: '',
     email: '',
     phone: '',
-    
-    // Address info - ✨ NEW
     street: '',
     house_number: '',
     house_number_addition: '',
     postal_code: '',
     city: '',
     country: 'Nederland',
-    
-    // Additional info - ✨ NEW
     notes: ''
   });
+
+  useEffect(() => {
+    fetchCustomer();
+  }, [customerId]);
+
+  const fetchCustomer = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get(`/customers/${customerId}`);
+      const customer = response.data;
+      
+      // Pre-fill form with existing data
+      setFormData({
+        first_name: customer.first_name || '',
+        last_name: customer.last_name || '',
+        company_name: customer.company_name || '',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        street: customer.street || '',
+        house_number: customer.house_number || '',
+        house_number_addition: customer.house_number_addition || '',
+        postal_code: customer.postal_code || '',
+        city: customer.city || '',
+        country: customer.country || 'Nederland',
+        notes: customer.notes || ''
+      });
+    } catch (err) {
+      console.error('Failed to fetch customer:', err);
+      setError('Kon klant niet laden. Probeer het opnieuw.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -47,12 +76,10 @@ const CustomerCreate = () => {
       ...prev,
       [name]: value
     }));
-    // Clear error when user starts typing
     if (error) setError(null);
   };
 
   const validateForm = () => {
-    // Email is required
     if (!formData.email.trim()) {
       setError('Email is verplicht');
       return false;
@@ -61,8 +88,6 @@ const CustomerCreate = () => {
       setError('Voer een geldig email adres in');
       return false;
     }
-    
-    // At least one name field is required
     if (!formData.first_name.trim() && !formData.last_name.trim() && !formData.company_name.trim()) {
       setError('Vul minimaal een voornaam, achternaam OF bedrijfsnaam in');
       return false;
@@ -87,7 +112,7 @@ const CustomerCreate = () => {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     setError(null);
 
     try {
@@ -98,61 +123,52 @@ const CustomerCreate = () => {
         if (value && value.trim() !== '') {
           dataToSend[key] = value.trim();
         } else if (key === 'country') {
-          // Always include country with default
           dataToSend[key] = 'Nederland';
         }
       });
 
-      console.log('Sending customer data:', dataToSend);
-      const response = await api.post('/customers/', dataToSend);
-      const customer = response.data;
+      console.log('Updating customer:', dataToSend);
+      await api.put(`/customers/${customerId}`, dataToSend);
       
-      console.log('✅ Customer created successfully:', customer);
-
-      // Check if we should redirect back to event creation
-      if (returnTo) {
-        const displayName = customer.company_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
-        navigate(`${returnTo}?customerId=${customer.customer_id}&customerName=${encodeURIComponent(displayName)}`);
-      } else {
-        // Show success and redirect to customer list
-        alert('✅ Klant succesvol aangemaakt!');
-        navigate('/customers');
-      }
+      alert('✅ Klant succesvol bijgewerkt!');
+      navigate(`/customers/${customerId}`);
     } catch (err) {
-      console.error('Failed to create customer:', err);
+      console.error('Failed to update customer:', err);
       console.error('Error response:', err.response?.data);
       
       const errorMessage = err.response?.data?.detail || 
                           err.response?.data?.message ||
-                          'Er is een fout opgetreden bij het aanmaken van de klant';
+                          'Er is een fout opgetreden bij het bijwerken van de klant';
       setError(errorMessage);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    if (returnTo) {
-      navigate(returnTo);
-    } else {
-      navigate('/customers');
-    }
+    navigate(`/customers/${customerId}`);
   };
+
+  if (loading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.loadingContainer}>
+          <div style={styles.spinner}></div>
+          <p style={styles.loadingText}>Klant laden...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
       <div style={styles.formCard}>
         {/* Header */}
         <div style={styles.header}>
-          <h2 style={styles.title}>👤 Nieuwe Klant</h2>
+          <h2 style={styles.title}>✏️ Klant Bewerken</h2>
           <p style={styles.subtitle}>
-            Voeg een nieuwe klant toe aan je systeem
+            Wijzig de gegevens van de klant
           </p>
-          {returnTo && (
-            <div style={styles.infoBadge}>
-              ℹ️ Na aanmaken ga je terug naar event creation
-            </div>
-          )}
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -181,7 +197,7 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="Bijv: Jan"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
 
@@ -197,7 +213,7 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="Bijv: Jansen"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
             </div>
@@ -214,7 +230,7 @@ const CustomerCreate = () => {
                 onChange={handleChange}
                 placeholder="Bijv: Jansen BV"
                 style={styles.input}
-                disabled={loading}
+                disabled={saving}
               />
             </div>
 
@@ -241,7 +257,7 @@ const CustomerCreate = () => {
                   placeholder="email@voorbeeld.nl"
                   required
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
 
@@ -257,18 +273,18 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="+31 6 12345678"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 3: Adres Informatie - ✨ NEW */}
+          {/* Section 3: Adres Informatie */}
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>🏠 Adres Informatie</h3>
             
             <div style={styles.formRow}>
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '2'}}>
+              <div style={{...styles.formGroup, flex: '2'}}>
                 <label style={styles.label} htmlFor="street">
                   Straat
                 </label>
@@ -280,11 +296,11 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="Bijv: Kerkstraat"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
 
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '1'}}>
+              <div style={{...styles.formGroup, flex: '1'}}>
                 <label style={styles.label} htmlFor="house_number">
                   Huisnummer
                 </label>
@@ -296,11 +312,11 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="123"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
 
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '0.5'}}>
+              <div style={{...styles.formGroup, flex: '0.5'}}>
                 <label style={styles.label} htmlFor="house_number_addition">
                   Toev.
                 </label>
@@ -312,7 +328,7 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="A"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
             </div>
@@ -330,7 +346,7 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="1234 AB"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
 
@@ -346,7 +362,7 @@ const CustomerCreate = () => {
                   onChange={handleChange}
                   placeholder="Bijv: Amsterdam"
                   style={styles.input}
-                  disabled={loading}
+                  disabled={saving}
                 />
               </div>
             </div>
@@ -363,7 +379,7 @@ const CustomerCreate = () => {
                 onChange={handleChange}
                 placeholder="Nederland"
                 style={styles.input}
-                disabled={loading}
+                disabled={saving}
               />
             </div>
 
@@ -372,7 +388,7 @@ const CustomerCreate = () => {
             </div>
           </div>
 
-          {/* Section 4: Extra Informatie - ✨ NEW */}
+          {/* Section 4: Extra Informatie */}
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>📋 Extra Informatie</h3>
             
@@ -385,15 +401,11 @@ const CustomerCreate = () => {
                 name="notes"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Algemene notities over deze klant... (bijv. voorkeuren, afspraken, bijzonderheden)"
+                placeholder="Algemene notities over deze klant..."
                 rows="4"
                 style={{...styles.input, ...styles.textarea}}
-                disabled={loading}
+                disabled={saving}
               />
-            </div>
-
-            <div style={styles.helperText}>
-              💡 Gebruik dit veld voor algemene informatie over de klant
             </div>
           </div>
 
@@ -403,7 +415,7 @@ const CustomerCreate = () => {
               type="button"
               onClick={handleCancel}
               style={styles.cancelButton}
-              disabled={loading}
+              disabled={saving}
             >
               Annuleren
             </button>
@@ -411,15 +423,15 @@ const CustomerCreate = () => {
             <button
               type="submit"
               style={styles.submitButton}
-              disabled={loading}
+              disabled={saving}
             >
-              {loading ? (
+              {saving ? (
                 <>
                   <span style={styles.spinnerSmall}></span>
-                  Aanmaken...
+                  Opslaan...
                 </>
               ) : (
-                '✓ Klant Aanmaken'
+                '✓ Wijzigingen Opslaan'
               )}
             </button>
           </div>
@@ -464,13 +476,6 @@ const styles = {
     margin: 0,
     fontSize: '1.05rem',
     opacity: 0.9,
-  },
-  infoBadge: {
-    marginTop: '1rem',
-    padding: '0.75rem 1rem',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: '8px',
-    fontSize: '0.9rem',
   },
   form: {
     padding: '2rem',
@@ -580,6 +585,26 @@ const styles = {
     animation: 'spin 0.8s linear infinite',
     display: 'inline-block',
   },
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '60vh',
+    gap: '1rem',
+  },
+  spinner: {
+    width: '50px',
+    height: '50px',
+    border: '4px solid #f3f3f3',
+    borderTop: '4px solid #667eea',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  loadingText: {
+    color: '#666',
+    fontSize: '1.1rem',
+  },
 };
 
-export default CustomerCreate;
+export default CustomerEdit;

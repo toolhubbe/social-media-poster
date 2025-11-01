@@ -8,11 +8,9 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/models/custo
 SQLAlchemy model voor customers tabel
 ✅ UPDATED: Workspace support - customers belong to a user's workspace
 ✅ FIXED: Removed created_by_name column (doesn't exist in database)
-✅ NEW: Added full address fields (street, house_number, postal_code, city, country)
-✅ NEW: Added notes field for general customer information
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, Text, func, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -28,10 +26,6 @@ class Customer(Base):
     - Each customer belongs to one workspace
     - Users can only see customers in their workspace
     - Complete data isolation between users
-    
-    ✅ ADDRESS SUPPORT:
-    - Full address with separate fields for easy processing
-    - street, house_number, house_number_addition, postal_code, city, country
     """
     __tablename__ = "customers"
     
@@ -54,43 +48,16 @@ class Customer(Base):
         index=True
     )
     
-    # ============================================================================
-    # BASIC INFO
-    # ============================================================================
-    
+    # Basic Info
     email = Column(String(255), unique=True, nullable=False, index=True)
     first_name = Column(String(100))
     last_name = Column(String(100))
     company_name = Column(String(255))
     phone = Column(String(50))
     
-    # ============================================================================
-    # ADDRESS INFO - ✨ NEW: Complete address structure
-    # ============================================================================
-    
-    street = Column(String(255), nullable=True)  # Straat
-    house_number = Column(String(20), nullable=True)  # Huisnummer
-    house_number_addition = Column(String(10), nullable=True)  # Toevoeging (A, bis, etc)
-    postal_code = Column(String(20), nullable=True)  # Postcode
-    city = Column(String(100), nullable=True)  # Gemeente/Stad
-    country = Column(String(100), nullable=True, default='Nederland')  # Land
-    
-    # ============================================================================
-    # ADDITIONAL INFO
-    # ============================================================================
-    
-    notes = Column(Text, nullable=True)  # ✨ NEW: General notes about customer
-    
-    # ============================================================================
-    # GOOGLE DRIVE INTEGRATION
-    # ============================================================================
-    
+    # Google Drive Integration
     google_drive_folder_id = Column(String(255))
     google_sheet_row_number = Column(Integer)
-    
-    # ============================================================================
-    # STATUS & METADATA
-    # ============================================================================
     
     # Status (gebruikt string status i.p.v. boolean archived)
     # Mogelijke waarden: "active", "archived", "inactive", etc.
@@ -100,9 +67,7 @@ class Customer(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # ============================================================================
-    # RELATIONSHIPS
-    # ============================================================================
+    # ✅ RELATIONSHIPS
     
     # Workspace this customer belongs to
     workspace = relationship("Workspace", back_populates="customers")
@@ -118,10 +83,6 @@ class Customer(Base):
         lazy="select"
     )
     
-    # ============================================================================
-    # METHODS
-    # ============================================================================
-    
     def __repr__(self):
         return f"<Customer(id={self.customer_id}, email={self.email}, company={self.company_name})>"
     
@@ -131,39 +92,18 @@ class Customer(Base):
             "customer_id": str(self.customer_id),
             "workspace_id": str(self.workspace_id) if self.workspace_id else None,
             "created_by": str(self.created_by) if self.created_by else None,
-            
-            # Basic info
             "email": self.email,
             "first_name": self.first_name,
             "last_name": self.last_name,
             "company_name": self.company_name,
             "phone": self.phone,
-            
-            # Address info
-            "street": self.street,
-            "house_number": self.house_number,
-            "house_number_addition": self.house_number_addition,
-            "postal_code": self.postal_code,
-            "city": self.city,
-            "country": self.country,
-            
-            # Additional info
-            "notes": self.notes,
-            
-            # Google Drive
             "google_drive_folder_id": self.google_drive_folder_id,
             "google_sheet_row_number": self.google_sheet_row_number,
-            
-            # Status & metadata
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "created_by_user_name": self.creator.full_name if self.creator else "System"
         }
-    
-    # ============================================================================
-    # PROPERTIES
-    # ============================================================================
     
     @property
     def full_name(self):
@@ -171,41 +111,6 @@ class Customer(Base):
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.first_name or self.last_name or "Unknown"
-    
-    @property
-    def full_address(self):
-        """Get formatted full address"""
-        parts = []
-        
-        # Straat + huisnummer + toevoeging
-        if self.street:
-            street_part = self.street
-            if self.house_number:
-                street_part += f" {self.house_number}"
-                if self.house_number_addition:
-                    street_part += f"{self.house_number_addition}"
-            parts.append(street_part)
-        
-        # Postcode + plaats
-        if self.postal_code and self.city:
-            parts.append(f"{self.postal_code} {self.city}")
-        elif self.postal_code:
-            parts.append(self.postal_code)
-        elif self.city:
-            parts.append(self.city)
-        
-        # Land
-        if self.country:
-            parts.append(self.country)
-        
-        return ", ".join(parts) if parts else None
-    
-    @property
-    def display_name(self):
-        """Get best display name for customer (company or full name)"""
-        if self.company_name:
-            return self.company_name
-        return self.full_name
     
     @property
     def is_active(self):
@@ -228,13 +133,3 @@ class Customer(Base):
         if self.creator:
             return self.creator.full_name
         return "System"
-    
-    @property
-    def has_complete_address(self):
-        """Check if customer has a complete address"""
-        return all([
-            self.street,
-            self.house_number,
-            self.postal_code,
-            self.city
-        ])

@@ -4,7 +4,7 @@
  * Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/App.jsx
  * 
  * Main application component with routing
- * ✅ UPDATED: CustomerEdit route added (01-11-2025)
+ * ✅ UPDATED: CustomerDetail route added (01-11-2025)
  */
 
 import React from 'react';
@@ -24,8 +24,7 @@ import DriveSetup from './components/DriveSetup';
 // ✅ UPDATED: Customer pages
 import CustomerList from './pages/customers/CustomerList';
 import CustomerCreate from './pages/customers/CustomerCreate';
-import CustomerDetail from './pages/customers/CustomerDetail';
-import CustomerEdit from './pages/customers/CustomerEdit';  // ✨ NEW
+import CustomerDetail from './pages/customers/CustomerDetail';  // ✨ NEW
 
 // ✅ Event pages
 import EventList from './pages/events/EventList';
@@ -86,17 +85,7 @@ function App() {
             }
           />
           
-          {/* ✨ NEW: Customer edit route - MOET VOOR :customerId staan! */}
-          <Route
-            path="/customers/:customerId/edit"
-            element={
-              <ProtectedRoute>
-                <CustomerEdit />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Customer detail route */}
+          {/* ✨ NEW: Customer detail route */}
           <Route
             path="/customers/:customerId"
             element={
