@@ -5,9 +5,7 @@
  * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerList.jsx
  * 
  * Overzichtspagina met alle klanten
- * ✅ FIXED: Shows deleted customers when "Alle statussen" or "Verwijderd" is selected
- * ✅ NEW: Added "Verwijderd" option to status filter
- * ✅ FIXED: Uses /customers/ endpoint instead of /summary for full list with all statuses
+ * Features: zoeken, filteren op status, klikken voor details
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,7 +18,7 @@ const CustomerList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active'); // Default to active only
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     fetchCustomers();
@@ -31,22 +29,13 @@ const CustomerList = () => {
       setLoading(true);
       setError(null);
       
-      const params = {
-        page: 1,
-        page_size: 100  // Get a lot of customers at once
-      };
-      
-      // ✅ FIXED: Only add status if not "all"
+      const params = {};
       if (statusFilter !== 'all') {
         params.status = statusFilter;
-      } else {
-        // When "all" is selected, include deleted customers
-        params.include_deleted = true;
       }
       
-      // ✅ FIXED: Use /customers/ endpoint which supports all statuses
-      const response = await api.get('/customers/', { params });
-      setCustomers(response.data.customers || []);
+      const response = await api.get('/customers/summary', { params });
+      setCustomers(response.data);
     } catch (err) {
       console.error('Failed to fetch customers:', err);
       setError('Kon klanten niet laden. Probeer het opnieuw.');
@@ -60,7 +49,7 @@ const CustomerList = () => {
     const searchLower = searchTerm.toLowerCase();
     return (
       customer.company_name?.toLowerCase().includes(searchLower) ||
-      (customer.first_name || '' + ' ' + customer.last_name || '').toLowerCase().includes(searchLower) ||
+      customer.full_name?.toLowerCase().includes(searchLower) ||
       customer.email?.toLowerCase().includes(searchLower) ||
       customer.phone?.includes(searchTerm)
     );
@@ -69,8 +58,8 @@ const CustomerList = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       active: { label: 'Actief', color: '#4caf50', bg: '#e8f5e9' },
-      archived: { label: 'Gearchiveerd', color: '#ff9800', bg: '#fff3e0' },
-      deleted: { label: 'Verwijderd', color: '#c62828', bg: '#ffebee' }  // ✅ NEW
+      inactive: { label: 'Inactief', color: '#ff9800', bg: '#fff3e0' },
+      archived: { label: 'Gearchiveerd', color: '#9e9e9e', bg: '#f5f5f5' }
     };
     
     const config = statusConfig[status] || statusConfig.active;
@@ -114,7 +103,6 @@ const CustomerList = () => {
               <p style={styles.subtitle}>
                 {filteredCustomers.length} {filteredCustomers.length === 1 ? 'klant' : 'klanten'}
                 {searchTerm && ` gevonden voor "${searchTerm}"`}
-                {statusFilter !== 'active' && statusFilter !== 'all' && ` (${statusFilter})`}
               </p>
             </div>
           </div>
@@ -144,10 +132,10 @@ const CustomerList = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
             style={styles.filterSelect}
           >
-            <option value="active">Actief</option>
             <option value="all">Alle statussen</option>
+            <option value="active">Actief</option>
+            <option value="inactive">Inactief</option>
             <option value="archived">Gearchiveerd</option>
-            <option value="deleted">Verwijderd</option>  {/* ✅ NEW */}
           </select>
         </div>
       </div>
@@ -173,22 +161,15 @@ const CustomerList = () => {
               {searchTerm ? '🔍' : '👥'}
             </div>
             <h3 style={styles.emptyTitle}>
-              {searchTerm ? 'Geen resultaten' : 
-               statusFilter === 'deleted' ? 'Geen verwijderde klanten' :
-               statusFilter === 'archived' ? 'Geen gearchiveerde klanten' :
-               'Nog geen klanten'}
+              {searchTerm ? 'Geen resultaten' : 'Nog geen klanten'}
             </h3>
             <p style={styles.emptyText}>
               {searchTerm 
                 ? `Geen klanten gevonden voor "${searchTerm}"`
-                : statusFilter === 'deleted' 
-                  ? 'Er zijn geen verwijderde klanten'
-                  : statusFilter === 'archived'
-                    ? 'Er zijn geen gearchiveerde klanten'
-                    : 'Begin met het toevoegen van je eerste klant'
+                : 'Begin met het toevoegen van je eerste klant'
               }
             </p>
-            {!searchTerm && statusFilter === 'active' && (
+            {!searchTerm && (
               <button 
                 onClick={() => navigate('/customers/create')}
                 style={styles.primaryButton}
@@ -202,10 +183,7 @@ const CustomerList = () => {
             {filteredCustomers.map((customer) => (
               <div
                 key={customer.customer_id}
-                style={{
-                  ...styles.customerCard,
-                  ...(customer.status === 'deleted' && styles.customerCardDeleted)
-                }}
+                style={styles.customerCard}
                 onClick={() => navigate(`/customers/${customer.customer_id}`)}
               >
                 <div style={styles.cardHeader}>
@@ -215,15 +193,11 @@ const CustomerList = () => {
 
                 <div style={styles.cardBody}>
                   <h3 style={styles.customerName}>
-                    {customer.company_name || 
-                     `${customer.first_name || ''} ${customer.last_name || ''}`.trim() ||
-                     'Onbekende klant'}
+                    {customer.company_name || customer.full_name}
                   </h3>
                   
-                  {customer.company_name && (customer.first_name || customer.last_name) && (
-                    <p style={styles.customerSubname}>
-                      {`${customer.first_name || ''} ${customer.last_name || ''}`.trim()}
-                    </p>
+                  {customer.company_name && customer.full_name && (
+                    <p style={styles.customerSubname}>{customer.full_name}</p>
                   )}
 
                   <div style={styles.customerDetails}>
@@ -239,37 +213,33 @@ const CustomerList = () => {
                       </div>
                     )}
 
-                    {customer.status !== 'deleted' && (
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailIcon}>📅</span>
-                        <span style={styles.detailText}>
-                          {customer.event_count || 0} event{customer.event_count !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    )}
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailIcon}>📅</span>
+                      <span style={styles.detailText}>
+                        {customer.event_count || 0} event{customer.event_count !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div style={styles.cardFooter}>
-                  {customer.status !== 'deleted' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/events/create?customerId=${customer.customer_id}`);
-                      }}
-                      style={styles.quickActionButton}
-                    >
-                      + Event
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/events/create?customerId=${customer.customer_id}`);
+                    }}
+                    style={styles.quickActionButton}
+                  >
+                    + Event
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/customers/${customer.customer_id}`);
                     }}
-                    style={customer.status === 'deleted' ? styles.restoreButton : styles.viewButton}
+                    style={styles.viewButton}
                   >
-                    {customer.status === 'deleted' ? 'Beheren →' : 'Bekijk →'}
+                    Bekijk →
                   </button>
                 </div>
               </div>
@@ -470,11 +440,6 @@ const styles = {
     transition: 'all 0.2s',
     border: '2px solid #e0e0e0',
   },
-  customerCardDeleted: {
-    opacity: 0.7,
-    border: '2px solid #ffcdd2',
-    backgroundColor: '#fafafa',
-  },
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -550,18 +515,6 @@ const styles = {
     padding: '0.625rem',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    transition: 'all 0.2s',
-  },
-  restoreButton: {
-    flex: 1,
-    padding: '0.625rem',
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
