@@ -4,47 +4,30 @@
  * Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/App.jsx
  * 
  * Main application component with routing
- * ✅ UPDATED: Customer & Event routes added (01-11-2025)
+ * ✅ UPDATED: Google Drive Setup route added
  */
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// Public pages
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
-import AuthError from './pages/AuthError';
-
-// Protected pages
 import Dashboard from './pages/Dashboard';
-import DriveSetup from './components/DriveSetup';
-
-// ✅ NEW: Customer pages
-import CustomerList from './pages/customers/CustomerList';
-import CustomerCreate from './pages/customers/CustomerCreate';
-
-// ✅ NEW: Event pages
-import EventList from './pages/events/EventList';
-import EventCreate from './pages/events/EventCreate';
-import EventDetail from './pages/events/EventDetail';
+import AuthError from './pages/AuthError';
+import DriveSetup from './components/DriveSetup';  // ✅ NEW: Drive Setup component
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          {/* ============================================
-              PUBLIC ROUTES
-              ============================================ */}
+          {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/error" element={<AuthError />} />
           
-          {/* ============================================
-              PROTECTED ROUTES - MAIN
-              ============================================ */}
+          {/* Protected routes */}
           <Route
             path="/dashboard"
             element={
@@ -54,6 +37,7 @@ function App() {
             }
           />
           
+          {/* ✅ NEW: Drive Setup route */}
           <Route
             path="/drive-setup"
             element={
@@ -63,60 +47,6 @@ function App() {
             }
           />
           
-          {/* ============================================
-              PROTECTED ROUTES - CUSTOMERS
-              ============================================ */}
-          <Route
-            path="/customers"
-            element={
-              <ProtectedRoute>
-                <CustomerList />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/customers/create"
-            element={
-              <ProtectedRoute>
-                <CustomerCreate />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* ============================================
-              PROTECTED ROUTES - EVENTS
-              ============================================ */}
-          <Route
-            path="/events"
-            element={
-              <ProtectedRoute>
-                <EventList />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/events/create"
-            element={
-              <ProtectedRoute>
-                <EventCreate />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/events/:eventId"
-            element={
-              <ProtectedRoute>
-                <EventDetail />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* ============================================
-              DEFAULT & 404
-              ============================================ */}
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           
