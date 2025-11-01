@@ -4,7 +4,7 @@
  * Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/Dashboard.jsx
  * 
  * Main dashboard for authenticated users
- * ✅ UPDATED: Drive Setup button added to Quick Actions
+ * ✅ UPDATED: Full customer & event navigation added (01-11-2025)
  */
 
 import React from 'react';
@@ -55,7 +55,10 @@ const Dashboard = () => {
 
         {/* Quick Stats */}
         <div style={styles.statsGrid}>
-          <div style={styles.statCard}>
+          <div 
+            style={styles.statCard}
+            onClick={() => navigate('/customers')}
+          >
             <div style={styles.statIcon}>👥</div>
             <div style={styles.statInfo}>
               <h3 style={styles.statTitle}>Customers</h3>
@@ -64,7 +67,10 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div style={styles.statCard}>
+          <div 
+            style={styles.statCard}
+            onClick={() => navigate('/events')}
+          >
             <div style={styles.statIcon}>📅</div>
             <div style={styles.statInfo}>
               <h3 style={styles.statTitle}>Events</h3>
@@ -96,7 +102,7 @@ const Dashboard = () => {
         <div style={styles.actionsSection}>
           <h3 style={styles.sectionTitle}>Quick Actions</h3>
           <div style={styles.actionsGrid}>
-            {/* ✅ NEW: Drive Setup button */}
+            {/* Drive Setup */}
             <button 
               style={styles.actionButton}
               onClick={() => navigate('/drive-setup')}
@@ -104,19 +110,57 @@ const Dashboard = () => {
               <span style={styles.actionIcon}>📁</span>
               <span style={styles.actionText}>Drive Setup</span>
             </button>
-            <button style={styles.actionButton}>
+
+            {/* View Customers */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => navigate('/customers')}
+            >
+              <span style={styles.actionIcon}>👥</span>
+              <span style={styles.actionText}>View Customers</span>
+            </button>
+
+            {/* Add Customer */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => navigate('/customers/create')}
+            >
               <span style={styles.actionIcon}>➕</span>
               <span style={styles.actionText}>Add Customer</span>
             </button>
-            <button style={styles.actionButton}>
+
+            {/* View Events */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => navigate('/events')}
+            >
               <span style={styles.actionIcon}>📅</span>
+              <span style={styles.actionText}>View Events</span>
+            </button>
+
+            {/* Create Event */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => navigate('/events/create')}
+            >
+              <span style={styles.actionIcon}>🎉</span>
               <span style={styles.actionText}>Create Event</span>
             </button>
-            <button style={styles.actionButton}>
+
+            {/* Upload Photos */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => alert('Photo upload coming soon!')}
+            >
               <span style={styles.actionIcon}>📸</span>
               <span style={styles.actionText}>Upload Photos</span>
             </button>
-            <button style={styles.actionButton}>
+
+            {/* Create Post */}
+            <button 
+              style={styles.actionButton}
+              onClick={() => alert('Post creation coming soon!')}
+            >
               <span style={styles.actionIcon}>✏️</span>
               <span style={styles.actionText}>Create Post</span>
             </button>
@@ -223,6 +267,8 @@ const styles = {
     gap: '16px',
     alignItems: 'flex-start',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
   statIcon: {
     fontSize: '40px',
