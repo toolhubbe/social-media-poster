@@ -2,9 +2,11 @@
 ==========================================
 SOCIAL MEDIA POSTER - CUSTOMER SCHEMAS
 ==========================================
-Bestandslocatie: /home/claude/social_media_poster_backend/app/schemas/customer.py
+Bestandslocatie: backend/app/schemas/customer.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/schemas/customer.py
 
 Pydantic schemas voor request/response validation
+✅ FIXED: Updated created_by field to match database structure
 """
 
 from pydantic import BaseModel, EmailStr, Field, validator
@@ -52,16 +54,15 @@ class CustomerUpdate(BaseModel):
 
 class CustomerResponse(CustomerBase):
     """Schema for customer response
-    ✅ UPDATED: Added workspace_id and created_by fields"""
+    ✅ UPDATED: Matches workspace-based architecture"""
     customer_id: UUID
-    workspace_id: Optional[UUID] = None  # ✅ NEW
-    created_by_user_id: Optional[UUID] = None  # ✅ NEW
+    workspace_id: UUID  # ✅ Required - customer always belongs to workspace
+    created_by: Optional[UUID] = None  # ✅ User who created this customer
     google_drive_folder_id: Optional[str] = None
     google_sheet_row_number: Optional[int] = None
     status: str
     created_at: datetime
     updated_at: datetime
-    created_by: str
     
     class Config:
         from_attributes = True

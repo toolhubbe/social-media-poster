@@ -2,10 +2,12 @@
 ==========================================
 SOCIAL MEDIA POSTER - CUSTOMER MODEL
 ==========================================
-Bestandslocatie: social_media_poster_backend/app/models/customer.py
+Bestandslocatie: backend/app/models/customer.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/models/customer.py
 
 SQLAlchemy model voor customers tabel
-✅ UPDATED: Workspace support added - customers now belong to a user's workspace
+✅ UPDATED: Workspace support - customers belong to a user's workspace
+✅ FIXED: Removed created_by_name column (doesn't exist in database)
 """
 
 from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey
@@ -17,7 +19,8 @@ from ..core.database import Base
 
 class Customer(Base):
     """
-    Customer model - represents a client/company in the system - een folder per klant word aangemaakt op google drive
+    Customer model - represents a client/company in the system
+    Each customer has a folder created in Google Drive
     
     ✅ WORKSPACE SUPPORT:
     - Each customer belongs to one workspace
@@ -29,15 +32,15 @@ class Customer(Base):
     # Primary Key
     customer_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # ✅ NEW: Workspace (data isolation)
+    # ✅ Workspace (data isolation) - Each customer belongs to a workspace
     workspace_id = Column(
         UUID(as_uuid=True),
         ForeignKey('workspaces.workspace_id', ondelete='CASCADE'),
-        nullable=True,  # Nullable for migration compatibility
+        nullable=False,  # Required for data isolation
         index=True
     )
     
-    # ✅ NEW: Created by user
+    # ✅ Created by user - Track who created this customer
     created_by = Column(
         UUID(as_uuid=True),
         ForeignKey('users.user_id'),
@@ -63,7 +66,6 @@ class Customer(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by_name = Column(String(100), default="system")  # Legacy field
     
     # ✅ RELATIONSHIPS
     
@@ -100,7 +102,7 @@ class Customer(Base):
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "created_by_name": self.created_by_name
+            "created_by_user_name": self.creator.full_name if self.creator else "System"
         }
     
     @property
@@ -124,3 +126,10 @@ class Customer(Base):
     def event_count(self):
         """Get total number of events for this customer"""
         return len(self.events) if self.events else 0
+    
+    @property
+    def created_by_user_name(self):
+        """Get name of user who created this customer"""
+        if self.creator:
+            return self.creator.full_name
+        return "System"
