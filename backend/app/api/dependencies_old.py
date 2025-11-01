@@ -1,7 +1,7 @@
 """
 Authentication Dependencies
-File Location: backend/app/api/dependencies.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/dependencies.py
+File Location: app/api/dependencies.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/api/dependencies.py
 
 FastAPI dependencies for authentication and authorization
 Used to protect routes and extract current user from JWT tokens
@@ -16,7 +16,6 @@ from uuid import UUID
 from ..core.database import get_db
 from ..core.jwt_utils import verify_token, extract_user_id_from_token
 from ..models.user import User
-from ..models.workspace import Workspace
 
 
 # ============================================================================
@@ -152,74 +151,6 @@ async def get_current_user(
         )
     
     return user
-
-
-# ============================================================================
-# WORKSPACE DEPENDENCY - ✨ NEW
-# ============================================================================
-
-async def get_current_workspace(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> Workspace:
-    """
-    Get current user's active workspace
-    
-    This dependency ensures data isolation between users.
-    Use in ALL endpoints that work with:
-    - Customers
-    - Events
-    - Photos
-    - Posts
-    
-    Usage Example:
-        @router.get("/customers")
-        async def get_customers(
-            workspace: Workspace = Depends(get_current_workspace),
-            db: Session = Depends(get_db)
-        ):
-            # Filter by workspace_id for data isolation
-            customers = db.query(Customer).filter(
-                Customer.workspace_id == workspace.workspace_id
-            ).all()
-            return customers
-    
-    Args:
-        current_user: Current authenticated user
-        db: Database session
-        
-    Returns:
-        Workspace object
-        
-    Raises:
-        HTTPException(403): If user has no workspace
-        HTTPException(404): If workspace not found
-        HTTPException(403): If user doesn't have access to workspace
-    """
-    if not current_user.current_workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No workspace selected. Please complete onboarding."
-        )
-    
-    workspace = db.query(Workspace).filter(
-        Workspace.workspace_id == current_user.current_workspace_id
-    ).first()
-    
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found"
-        )
-    
-    # Verify user has access to this workspace
-    if workspace.owner_user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this workspace"
-        )
-    
-    return workspace
 
 
 # ============================================================================
@@ -426,21 +357,7 @@ async def list_customers(current_user: User = Depends(get_current_user)):
     return {"customers": [...]}
 
 
-EXAMPLE 2: Workspace-Scoped Data (NEW!)
-----------------------------------------
-@router.get("/customers")
-async def list_customers(
-    workspace: Workspace = Depends(get_current_workspace),
-    db: Session = Depends(get_db)
-):
-    # Only show customers from user's workspace
-    customers = db.query(Customer).filter(
-        Customer.workspace_id == workspace.workspace_id
-    ).all()
-    return customers
-
-
-EXAMPLE 3: Admin-Only Route
+EXAMPLE 2: Admin-Only Route
 ----------------------------
 @router.delete("/users/{user_id}")
 async def delete_user(
@@ -451,7 +368,7 @@ async def delete_user(
     return {"message": "User deleted"}
 
 
-EXAMPLE 4: Optional Authentication
+EXAMPLE 3: Optional Authentication
 -----------------------------------
 @router.get("/public-stats")
 async def get_stats(current_user: Optional[User] = Depends(get_current_user_optional)):
@@ -463,7 +380,7 @@ async def get_stats(current_user: Optional[User] = Depends(get_current_user_opti
         return {"stats": "basic"}
 
 
-EXAMPLE 5: Premium Feature
+EXAMPLE 4: Premium Feature
 ---------------------------
 @router.post("/ai/generate-content")
 async def generate_content(
@@ -473,7 +390,7 @@ async def generate_content(
     return {"content": "AI generated content"}
 
 
-EXAMPLE 6: Multiple Requirements
+EXAMPLE 5: Multiple Requirements
 ---------------------------------
 @router.post("/facebook/post")
 async def post_to_facebook(
@@ -537,22 +454,3 @@ def verify_user_owns_resource(user: User, resource_user_id: UUID) -> bool:
         True if user owns resource or is admin
     """
     return user.user_id == resource_user_id or user.is_superuser
-
-
-def verify_workspace_access(user: User, resource_workspace_id: UUID) -> bool:
-    """
-    Helper to verify a user has access to a workspace resource
-    
-    Use for authorization checks on workspace-scoped resources:
-    
-    if not verify_workspace_access(current_user, customer.workspace_id):
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    Args:
-        user: Current user
-        resource_workspace_id: Workspace ID of the resource
-        
-    Returns:
-        True if user has access to the workspace
-    """
-    return user.current_workspace_id == resource_workspace_id or user.is_superuser

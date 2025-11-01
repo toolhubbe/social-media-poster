@@ -51,11 +51,8 @@ class CustomerUpdate(BaseModel):
 
 
 class CustomerResponse(CustomerBase):
-    """Schema for customer response
-    ✅ UPDATED: Added workspace_id and created_by fields"""
+    """Schema for customer response"""
     customer_id: UUID
-    workspace_id: Optional[UUID] = None  # ✅ NEW
-    created_by_user_id: Optional[UUID] = None  # ✅ NEW
     google_drive_folder_id: Optional[str] = None
     google_sheet_row_number: Optional[int] = None
     status: str

@@ -1,13 +1,16 @@
 """
 User Model for OAuth 2.0 Authentication
-File Location: app/models/user.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/models/user.py
+File Location: backend/app/models/user.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/models/user.py
 
 Multi-tenant SaaS user model with Google OAuth 2.0 integration
 Each user has their own Google Drive and can manage their own customers/events/photos
+
+✅ UPDATED: Workspace relationships added for personal workspace support
+✅ FIXED: Removed SocialMediaAccount relationship (not implemented yet)
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -22,6 +25,7 @@ class User(Base):
     
     Each user:
     - Authenticates via Google OAuth 2.0
+    - Has their own personal workspace
     - Has their own Google Drive storage
     - Can create customers, events, photos, posts
     - Has their own subscription/billing
@@ -50,6 +54,23 @@ class User(Base):
     google_access_token = Column(Text)   # Short-lived access token
     token_expires_at = Column(DateTime(timezone=True))  # When access token expires
     
+    # ✅ NEW: Workspace Management
+    current_workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('workspaces.workspace_id'),
+        nullable=True,
+        index=True
+    )
+    default_workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('workspaces.workspace_id'),
+        nullable=True
+    )
+    
+    # ✅ NEW: Onboarding Flow
+    onboarding_completed = Column(Boolean, default=False)
+    onboarding_step = Column(Integer, default=0)  # Track onboarding progress
+    
     # Account Status
     is_active = Column(Boolean, default=True, index=True)
     is_superuser = Column(Boolean, default=False)
@@ -69,11 +90,42 @@ class User(Base):
     )
     last_login_at = Column(DateTime(timezone=True))
     
-    # Relationships (define these after creating the relationship columns in other models)
-    # customers = relationship("Customer", back_populates="user", cascade="all, delete-orphan")
-    # events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
-    # photos = relationship("Photo", back_populates="user", cascade="all, delete-orphan")
-    # posts = relationship("Post", back_populates="user", cascade="all, delete-orphan")
+    # ============================================================================
+    # RELATIONSHIPS
+    # ============================================================================
+    
+    # Workspaces owned by this user
+    owned_workspaces = relationship(
+        "Workspace",
+        foreign_keys="Workspace.owner_user_id",
+        back_populates="owner",
+        cascade="all, delete-orphan"
+    )
+    
+    # Current active workspace
+    current_workspace = relationship(
+        "Workspace",
+        foreign_keys=[current_workspace_id],
+        post_update=True
+    )
+    
+    # Default workspace
+    default_workspace = relationship(
+        "Workspace",
+        foreign_keys=[default_workspace_id],
+        post_update=True
+    )
+    
+    # Social media accounts connected by this user
+    social_media_accounts = relationship(
+        "SocialMediaAccount",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    
+    # ============================================================================
+    # METHODS
+    # ============================================================================
     
     def __repr__(self):
         return f"<User {self.email} (Google ID: {self.google_user_id})>"
@@ -93,6 +145,18 @@ class User(Base):
         from datetime import timedelta
         threshold = datetime.now(timezone.utc) + timedelta(minutes=5)
         return self.token_expires_at <= threshold
+    
+    @property
+    def has_workspace(self) -> bool:
+        """Check if user has at least one workspace"""
+        return self.current_workspace_id is not None
+    
+    @property
+    def workspace_setup_complete(self) -> bool:
+        """Check if user's workspace is fully set up"""
+        if not self.current_workspace:
+            return False
+        return self.current_workspace.drive_setup_complete
     
     def update_tokens(
         self,
@@ -121,6 +185,22 @@ class User(Base):
         self.last_login_at = datetime.now(timezone.utc)
         self.updated_at = datetime.now(timezone.utc)
     
+    def complete_onboarding_step(self, step: int):
+        """Mark an onboarding step as complete"""
+        if step > self.onboarding_step:
+            self.onboarding_step = step
+        self.updated_at = datetime.now(timezone.utc)
+    
+    def complete_onboarding(self):
+        """Mark onboarding as fully complete"""
+        self.onboarding_completed = True
+        self.updated_at = datetime.now(timezone.utc)
+    
+    def set_current_workspace(self, workspace_id: UUID):
+        """Set the current active workspace"""
+        self.current_workspace_id = workspace_id
+        self.updated_at = datetime.now(timezone.utc)
+    
     def to_dict(self) -> dict:
         """Convert user to dictionary (safe for API responses - no tokens!)"""
         return {
@@ -136,6 +216,10 @@ class User(Base):
             "is_superuser": self.is_superuser,
             "subscription_status": self.subscription_status,
             "subscription_expires_at": self.subscription_expires_at.isoformat() if self.subscription_expires_at else None,
+            "current_workspace_id": str(self.current_workspace_id) if self.current_workspace_id else None,
+            "default_workspace_id": str(self.default_workspace_id) if self.default_workspace_id else None,
+            "onboarding_completed": self.onboarding_completed,
+            "onboarding_step": self.onboarding_step,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None
         }

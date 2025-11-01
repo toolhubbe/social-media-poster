@@ -1,13 +1,16 @@
 """
 Google Drive Service
-File Location: app/services/drive_service.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/services/drive_service.py
+File Location: backend/app/services/drive_service.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/services/drive_service.py
 
-Handles all Google Drive API operations:
+Handles all Google Drive API operations using user's OAuth token:
 - Folder creation
 - Folder sharing
 - Permission management
 - Folder search
+
+✅ USER OAUTH: All operations use user's Google OAuth access token
+✅ NO SERVICE ACCOUNT: Direct integration with user's personal Drive
 """
 
 import httpx
@@ -16,7 +19,12 @@ from fastapi import HTTPException, status
 
 
 class DriveService:
-    """Google Drive API Service"""
+    """
+    Google Drive API Service
+    
+    Uses user's OAuth access token for all Drive operations.
+    Each user operates on their own Google Drive.
+    """
     
     DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
     
@@ -25,7 +33,7 @@ class DriveService:
         Initialize Drive service with OAuth access token
         
         Args:
-            access_token: Google OAuth access token
+            access_token: Google OAuth access token from authenticated user
         """
         self.access_token = access_token
         self.headers = {
@@ -61,7 +69,7 @@ class DriveService:
             if parent_id:
                 metadata["parents"] = [parent_id]
             
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     f"{self.DRIVE_API_BASE}/files",
                     headers=self.headers,
@@ -81,12 +89,20 @@ class DriveService:
                         detail=f"Failed to create folder: {error_msg}"
                     )
         
+        except httpx.TimeoutException:
+            print(f"❌ Timeout creating folder")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Request to Google Drive timed out"
+            )
         except httpx.HTTPError as e:
             print(f"❌ HTTP error creating folder: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error communicating with Google Drive: {str(e)}"
             )
+        except HTTPException:
+            raise
         except Exception as e:
             print(f"❌ Unexpected error creating folder: {e}")
             raise HTTPException(
@@ -113,8 +129,8 @@ class DriveService:
         Returns:
             Dict with permission info
         
-        Raises:
-            HTTPException if sharing fails
+        Note:
+            Does not raise exceptions on failure, returns error dict instead
         """
         try:
             permission_data = {
@@ -123,7 +139,7 @@ class DriveService:
                 "emailAddress": email
             }
             
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     f"{self.DRIVE_API_BASE}/files/{folder_id}/permissions",
                     headers=self.headers,
@@ -141,12 +157,11 @@ class DriveService:
                 else:
                     error_msg = response.text
                     print(f"⚠️ Failed to share with {email}: {error_msg}")
-                    # Don't raise exception, just log warning
-                    return {"error": error_msg}
+                    return {"error": error_msg, "email": email}
         
         except Exception as e:
             print(f"⚠️ Error sharing folder: {e}")
-            return {"error": str(e)}
+            return {"error": str(e), "email": email}
     
     async def share_with_multiple(
         self,
@@ -210,7 +225,7 @@ class DriveService:
             
             query = " and ".join(query_parts)
             
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{self.DRIVE_API_BASE}/files",
                     headers=self.headers,
@@ -248,10 +263,10 @@ class DriveService:
             folder_id: ID of folder
         
         Returns:
-            Folder info dict
+            Folder info dict or None if not found/accessible
         """
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{self.DRIVE_API_BASE}/files/{folder_id}",
                     headers=self.headers,
@@ -261,13 +276,59 @@ class DriveService:
                 )
                 
                 if response.status_code == 200:
-                    return response.json()
+                    folder_info = response.json()
+                    print(f"✅ Got folder info: {folder_info.get('name')}")
+                    return folder_info
                 else:
+                    print(f"⚠️ Folder not found or not accessible: {folder_id}")
                     return None
         
         except Exception as e:
             print(f"❌ Error getting folder info: {e}")
             return None
+    
+    async def list_files_in_folder(
+        self,
+        folder_id: str,
+        page_size: int = 100
+    ) -> List[Dict]:
+        """
+        List files in a specific folder
+        
+        Args:
+            folder_id: ID of folder to list
+            page_size: Maximum files to return (default 100)
+        
+        Returns:
+            List of file info dicts
+        """
+        try:
+            query = f"'{folder_id}' in parents and trashed=false"
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.DRIVE_API_BASE}/files",
+                    headers=self.headers,
+                    params={
+                        "q": query,
+                        "pageSize": page_size,
+                        "fields": "files(id,name,mimeType,webViewLink,createdTime,modifiedTime)",
+                        "orderBy": "modifiedTime desc"
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    files = data.get("files", [])
+                    print(f"✅ Found {len(files)} files in folder")
+                    return files
+                else:
+                    print(f"⚠️ Failed to list files: {response.text}")
+                    return []
+        
+        except Exception as e:
+            print(f"❌ Error listing files: {e}")
+            return []
     
     async def create_main_folder_with_sharing(
         self,
@@ -313,7 +374,10 @@ class DriveService:
         return folder_info, share_results
 
 
-# Helper function for easy access
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 def get_drive_service(access_token: str) -> DriveService:
     """
     Get a Drive service instance
@@ -323,5 +387,41 @@ def get_drive_service(access_token: str) -> DriveService:
     
     Returns:
         DriveService instance
+    
+    Example:
+        >>> service = get_drive_service(user.google_access_token)
+        >>> folder = await service.create_folder("My Folder")
     """
     return DriveService(access_token)
+
+
+def sanitize_folder_name(name: str) -> str:
+    """
+    Sanitize a name for use as a folder name
+    
+    Removes special characters and replaces spaces with underscores
+    
+    Args:
+        name: Original name
+    
+    Returns:
+        Sanitized name safe for use as folder name
+    
+    Example:
+        >>> sanitize_folder_name("John's Wedding 2024!")
+        'Johns_Wedding_2024'
+    """
+    # Remove leading/trailing whitespace
+    name = name.strip()
+    
+    # Replace spaces with underscores
+    name = name.replace(' ', '_')
+    
+    # Remove special characters (keep only alphanumeric and underscore)
+    name = ''.join(c for c in name if c.isalnum() or c == '_')
+    
+    # Ensure it's not empty
+    if not name:
+        name = "Untitled"
+    
+    return name

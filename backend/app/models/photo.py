@@ -6,7 +6,7 @@ Bestandslocatie: app/models/photo.py
 Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/models/photo.py
 
 SQLAlchemy model voor photos tabel
-Stores photo metadata and Google Drive links for event photos
+✅ UPDATED: Workspace support added - photos now belong to a user's workspace
 """
 
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean, Text
@@ -20,12 +20,32 @@ from ..core.database import Base
 class Photo(Base):
     """
     Photo model - represents a photo uploaded for an event
-    Photos are stored in Google Drive, metadata stored in database
+    
+    ✅ WORKSPACE SUPPORT:
+    - Each photo belongs to one workspace
+    - Photos are stored in Google Drive
+    - Complete data isolation between users
     """
     __tablename__ = "photos"
     
     # Primary Key
     photo_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    
+    # ✅ NEW: Workspace (data isolation)
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('workspaces.workspace_id', ondelete='CASCADE'),
+        nullable=True,  # Nullable for migration compatibility
+        index=True
+    )
+    
+    # ✅ NEW: Created by user
+    created_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey('users.user_id'),
+        nullable=True,
+        index=True
+    )
     
     # Foreign Key to Event
     event_id = Column(
@@ -55,13 +75,21 @@ class Photo(Base):
     
     # Upload Information
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    uploaded_by = Column(String(100))  # User who uploaded (optional for now)
+    uploaded_by = Column(String(100))  # Legacy field - use created_by instead
     
     # Status
     status = Column(String(50), default='active', nullable=False)  # active, deleted, processing
     archived = Column(Boolean, default=False)
     
-    # Relationships
+    # ✅ RELATIONSHIPS
+    
+    # Workspace this photo belongs to
+    workspace = relationship("Workspace", back_populates="photos")
+    
+    # User who uploaded this photo
+    creator = relationship("User", foreign_keys=[created_by])
+    
+    # Event this photo belongs to
     event = relationship("Event", back_populates="photos")
     
     def __repr__(self):
@@ -71,6 +99,8 @@ class Photo(Base):
         """Convert model to dictionary for JSON serialization"""
         return {
             'photo_id': str(self.photo_id),
+            'workspace_id': str(self.workspace_id) if self.workspace_id else None,
+            'created_by': str(self.created_by) if self.created_by else None,
             'event_id': str(self.event_id),
             'filename': self.filename,
             'original_filename': self.original_filename,

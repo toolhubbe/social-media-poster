@@ -166,12 +166,31 @@ async def google_callback(
             
             user_info = userinfo_response.json()
             
-            google_user_id = user_info.get("sub")  # Google's unique user ID
+            # Extract Google User ID (try 'sub' first, then 'id' as fallback)
+            google_user_id = user_info.get("sub") or user_info.get("id")
+            
+            # Validate that we have a user ID
+            if not google_user_id:
+                print(f"❌ No Google user ID in response: {user_info}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get Google user ID from user info"
+                )
+            
             email = user_info.get("email")
+            
+            # Validate email
+            if not email:
+                print(f"❌ No email in response: {user_info}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get email from Google"
+                )
+            
             email_verified = user_info.get("email_verified", False)
-            full_name = user_info.get("name")
-            given_name = user_info.get("given_name")
-            family_name = user_info.get("family_name")
+            full_name = user_info.get("name", "")
+            given_name = user_info.get("given_name", "")
+            family_name = user_info.get("family_name", "")
             picture_url = user_info.get("picture")
             locale = user_info.get("locale", "en")
             
@@ -179,6 +198,7 @@ async def google_callback(
             print(f"   Email: {email}")
             print(f"   Name: {full_name}")
             print(f"   Google ID: {google_user_id}")
+            print(f"   Verified: {email_verified}")
         
         # ================================================================
         # STEP 3: Create or update user in database

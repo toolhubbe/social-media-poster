@@ -36,12 +36,9 @@ class PhotoUpdate(BaseModel):
 
 
 class PhotoResponse(PhotoBase):
-    """Schema for photo response
-    ✅ UPDATED: Added workspace_id and created_by fields"""
+    """Schema for photo response"""
     photo_id: UUID
     event_id: UUID
-    workspace_id: Optional[UUID] = None  # ✅ NEW
-    created_by_user_id: Optional[UUID] = None  # ✅ NEW
     filename: str
     original_filename: str
     file_size: Optional[int] = None

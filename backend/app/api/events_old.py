@@ -2,12 +2,12 @@
 ==========================================
 SOCIAL MEDIA POSTER - EVENT API ENDPOINTS  
 ==========================================
-Bestandslocatie: backend/app/api/events.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/events.py
+Bestandslocatie: app/api/events.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/api/events.py
 
 FastAPI routes voor event management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
-✅ WORKSPACE ISOLATION: Users zien alleen events van hun workspace
+✅ MULTI-TENANT: Users zien alleen hun eigen events
 ✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
 """
 
@@ -22,7 +22,6 @@ from ..core.database import get_db
 from ..models.event import Event
 from ..models.customer import Customer
 from ..models.user import User
-from ..models.workspace import Workspace
 from ..schemas.event import (
     EventCreate,
     EventUpdate,
@@ -31,7 +30,7 @@ from ..schemas.event import (
     EventListResponse,
     EventArchiveRequest
 )
-from .dependencies import get_current_user, get_current_workspace
+from .dependencies import get_current_user
 
 # Router instance
 router = APIRouter(
@@ -62,7 +61,6 @@ def sanitize_folder_name(name: str) -> str:
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_event(
     event: EventCreate,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
@@ -70,29 +68,28 @@ def create_event(
     Create a new event with automatic Google Drive folder
     
     ✅ OAuth Protected: Requires valid JWT token
-    ✅ Workspace Isolated: Event is linked to workspace
-    ✅ Ownership Verification: Checks if customer belongs to workspace
+    ✅ User Isolation: Event is linked to authenticated user
+    ✅ Ownership Verification: Checks if customer belongs to user
     ✅ User's Drive: Creates folder in authenticated user's Google Drive
     
     Args:
         event: Event data
-        workspace: Current workspace (auto-injected)
         current_user: Authenticated user from JWT token
         
     Returns:
         Created event with google_drive_folder_id
     """
     
-    # Verify customer exists AND belongs to this workspace
+    # Verify customer exists AND belongs to this user
     customer = db.query(Customer).filter(
         Customer.customer_id == event.customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify customer in workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify customer ownership
     ).first()
     
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
     
     # Check customer status
@@ -111,8 +108,7 @@ def create_event(
     # Create event object
     db_event = Event(
         customer_id=event.customer_id,
-        workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-        created_by_user_id=current_user.user_id,  # ✅ Track creator
+        user_id=current_user.user_id,  # ✅ Link event to user
         event_name=event.event_name,
         event_type=event.event_type,
         event_date=event.event_date,
@@ -132,8 +128,7 @@ def create_event(
     # This will use the authenticated user's Google Drive, not a Service Account
     # Implementation will be added in Phase 2 after OAuth is fully working
     
-    print(f"✅ Event created in workspace: {workspace.name}")
-    print(f"   User: {current_user.email}")
+    print(f"✅ Event created for user: {current_user.email}")
     print(f"   Event: {event.event_name}")
     print(f"   Customer: {customer.company_name or customer.email}")
     print(f"   Event ID: {db_event.event_id}")
@@ -154,19 +149,19 @@ def list_events(
     event_type: Optional[str] = Query(None, description="Filter by event type"),
     search: Optional[str] = Query(None, description="Search in event name and description"),
     include_archived: bool = Query(False, description="Include archived events"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get list of events with pagination and filtering
     
-    ✅ OAuth Protected: Only returns events from user's workspace
-    ✅ Workspace Isolation: User can only see events in their workspace
+    ✅ OAuth Protected: Only returns events owned by authenticated user
+    ✅ Multi-tenant: User can only see their own events
     """
     
-    # Base query - ONLY workspace's events
+    # Base query - ONLY user's own events
     query = db.query(Event).filter(
-        Event.workspace_id == workspace.workspace_id  # ✅ Critical: Filter by workspace
+        Event.user_id == current_user.user_id  # ✅ Critical: Filter by user
     )
     
     # Filters
@@ -174,16 +169,16 @@ def list_events(
         query = query.filter(Event.archived == False)
     
     if customer_id:
-        # Verify customer belongs to workspace
+        # Verify customer belongs to user
         customer = db.query(Customer).filter(
             Customer.customer_id == customer_id,
-            Customer.workspace_id == workspace.workspace_id
+            Customer.user_id == current_user.user_id
         ).first()
         
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Customer not found in your workspace"
+                detail="Customer not found or you don't have access to it"
             )
         
         query = query.filter(Event.customer_id == customer_id)
@@ -226,23 +221,23 @@ def list_events(
 @router.get("/{event_id}", response_model=EventResponse)
 def get_event(
     event_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get a specific event by ID
     
-    ✅ OAuth Protected: User can only access events in their workspace
+    ✅ OAuth Protected: User can only access their own events
     """
     event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Event.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
     
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
     return event
@@ -256,30 +251,30 @@ def get_event(
 def get_customer_events_summary(
     customer_id: UUID,
     status: str = Query("active", description="Filter by status"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get lightweight event list for dropdowns
     
-    ✅ OAuth Protected: Only returns workspace's events
-    ✅ Verifies customer in workspace
+    ✅ OAuth Protected: Only returns user's own events
+    ✅ Verifies customer ownership
     """
-    # Verify customer belongs to workspace
+    # Verify customer belongs to user
     customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id
+        Customer.user_id == current_user.user_id
     ).first()
     
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
     
     events = db.query(Event).filter(
         Event.customer_id == customer_id,
-        Event.workspace_id == workspace.workspace_id,  # ✅ Workspace filter
+        Event.user_id == current_user.user_id,  # ✅ User's own data
         Event.status == status
     ).all()
     
@@ -302,24 +297,24 @@ def get_customer_events_summary(
 def update_event(
     event_id: UUID,
     event_update: EventUpdate,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Update an event
     
-    ✅ OAuth Protected: User can only update events in their workspace
+    ✅ OAuth Protected: User can only update their own events
     """
-    # Get event with workspace verification
+    # Get event with ownership verification
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Event.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
     
     if not db_event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
     # Update fields
@@ -341,23 +336,23 @@ def update_event(
 def delete_event(
     event_id: UUID,
     hard_delete: bool = Query(False, description="Permanently delete (true) or soft delete (false)"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Delete an event
     
-    ✅ OAuth Protected: User can only delete events in their workspace
+    ✅ OAuth Protected: User can only delete their own events
     """
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Event.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
     
     if not db_event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
     if hard_delete:
@@ -376,23 +371,23 @@ def delete_event(
 @router.post("/{event_id}/archive", response_model=EventResponse)
 def archive_event(
     event_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Archive an event
     
-    ✅ OAuth Protected: User can only archive events in their workspace
+    ✅ OAuth Protected: User can only archive their own events
     """
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Event.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
     
     if not db_event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
     db_event.archived = True
@@ -409,23 +404,23 @@ def archive_event(
 @router.post("/{event_id}/restore", response_model=EventResponse)
 def restore_event(
     event_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Restore an archived event
     
-    ✅ OAuth Protected: User can only restore events in their workspace
+    ✅ OAuth Protected: User can only restore their own events
     """
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Event.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
     
     if not db_event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
     db_event.archived = False
@@ -443,32 +438,32 @@ def restore_event(
 def list_customer_events(
     customer_id: UUID,
     include_archived: bool = Query(False, description="Include archived events"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get all events for a customer (without pagination)
     
-    ✅ OAuth Protected: Verifies customer in workspace
+    ✅ OAuth Protected: Verifies customer ownership
     
     Perfect for dropdowns and overview pages
     """
-    # Verify customer belongs to workspace
+    # Verify customer belongs to user
     customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id
+        Customer.user_id == current_user.user_id
     ).first()
     
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
     
     # Query events
     query = db.query(Event).filter(
         Event.customer_id == customer_id,
-        Event.workspace_id == workspace.workspace_id  # ✅ Workspace filter
+        Event.user_id == current_user.user_id  # ✅ Double-check ownership
     )
     
     if not include_archived:
@@ -490,7 +485,7 @@ def list_customer_events(
 @router.get("/{event_id}/with-customer")
 def get_event_with_customer_details(
     event_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
@@ -500,19 +495,19 @@ def get_event_with_customer_details(
     
     Perfect for detail pages where you need both event and customer info
     """
-    # Get event with workspace verification
+    # Get event with ownership verification
     event = db.query(Event).filter(
         Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id
+        Event.user_id == current_user.user_id
     ).first()
     
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
+            detail="Event not found or you don't have access to it"
         )
     
-    # Get customer (already verified via workspace check)
+    # Get customer (already verified via event.user_id check)
     customer = db.query(Customer).filter(
         Customer.customer_id == event.customer_id
     ).first()
@@ -545,22 +540,21 @@ def get_event_with_customer_details(
 
 
 # ============================================================================
-# STATISTICS
+# STATISTICS (NEW!)
 # ============================================================================
 
 @router.get("/stats/overview")
 def get_event_stats(
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
-    Get event statistics for current workspace
+    Get event statistics for current user
     
-    ✅ OAuth Protected: Only shows stats for workspace's events
+    ✅ OAuth Protected: Only shows stats for user's own events
     """
     base_query = db.query(Event).filter(
-        Event.workspace_id == workspace.workspace_id  # ✅ Workspace filter
+        Event.user_id == current_user.user_id
     )
     
     total = base_query.count()
@@ -575,7 +569,5 @@ def get_event_stats(
         "active": active,
         "completed": completed,
         "archived": archived,
-        "workspace_id": str(workspace.workspace_id),
-        "workspace_name": workspace.name,
         "user_email": current_user.email
     }

@@ -109,12 +109,9 @@ class EventUpdate(BaseModel):
 
 
 class EventResponse(EventBase):
-    """Schema voor het returnen van event data
-    ✅ UPDATED: Added workspace_id and created_by fields"""
+    """Schema voor het returnen van event data"""
     event_id: UUID
     customer_id: UUID
-    workspace_id: Optional[UUID] = None  # ✅ NEW
-    created_by_user_id: Optional[UUID] = None  # ✅ NEW
     google_drive_folder_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime

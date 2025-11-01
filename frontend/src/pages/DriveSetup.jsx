@@ -133,7 +133,7 @@ const DriveSetup = () => {
             style={styles.skipButton}
             disabled={loading}
           >
-            Skip for Now
+            ← Back to Dashboard
           </button>
           <button
             onClick={handleCreateFolder}

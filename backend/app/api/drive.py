@@ -2,27 +2,29 @@
 ==========================================
 GOOGLE DRIVE API ENDPOINTS
 ==========================================
-Bestandslocatie: social_media_poster_backend/app/api/drive.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/api/drive.py
+Bestandslocatie: backend/app/api/drive.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/drive.py
 
 Google Drive integration endpoints:
-- Setup (initialize main folder structure)
-- Status (check setup completion)
+- Setup (initialize workspace folder structure)
+- Status (check workspace setup completion)
 - Verify folder (check if folder exists)
-- Configuration management
+- Workspace-specific Drive operations
+
+✅ WORKSPACE ISOLATION: Each workspace has its own Drive folder
+✅ USER OAUTH: Uses user's Google Drive (not Service Account)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
-import os
+import httpx
 
 from ..core.database import get_db
-from ..services.google_drive import GoogleDriveService
-from ..models.config import AppConfig
-from ..models.user import AuditLog
-from .dependencies import get_current_user
-from ..models.user import User
+from ..services.drive_service import DriveService
+from ..models.workspace import Workspace
+from ..models.user import User, AuditLog
+from .dependencies import get_current_user, get_current_workspace
 
 
 router = APIRouter(prefix="/drive", tags=["google-drive"])
@@ -32,14 +34,27 @@ router = APIRouter(prefix="/drive", tags=["google-drive"])
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_drive_service() -> GoogleDriveService:
+def get_drive_service(current_user: User) -> DriveService:
     """
-    Get initialized GoogleDriveService instance
+    Get initialized DriveService instance using user's OAuth token
     
-    Raises HTTPException if service account credentials are not configured
+    Args:
+        current_user: Authenticated user with Google OAuth token
+        
+    Returns:
+        DriveService instance
+        
+    Raises:
+        HTTPException if user doesn't have valid Google access token
     """
+    if not current_user.google_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No Google Drive access. Please login again."
+        )
+    
     try:
-        return GoogleDriveService()
+        return DriveService(access_token=current_user.google_access_token)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -47,123 +62,145 @@ def get_drive_service() -> GoogleDriveService:
         )
 
 
-def get_config_value(db: Session, key: str) -> Optional[str]:
-    """Get configuration value from database"""
-    config = db.query(AppConfig).filter(AppConfig.key == key).first()
-    return config.value if config else None
-
-
-def update_config_value(db: Session, key: str, value: str):
-    """Update configuration value in database"""
-    config = db.query(AppConfig).filter(AppConfig.key == key).first()
-    if config:
-        config.value = value
-        db.commit()
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Configuration key '{key}' not found"
-        )
-
-
 # ============================================================================
-# DRIVE SETUP - Initial Configuration
+# WORKSPACE DRIVE SETUP
 # ============================================================================
 
 @router.post("/setup")
-async def setup_drive_structure(
+async def setup_workspace_drive_structure(
+    workspace: Workspace = Depends(get_current_workspace),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Setup initial Google Drive folder structure
+    Setup Google Drive folder structure for workspace
+    
+    ✅ Workspace Isolated: Each workspace gets its own Drive folder
+    ✅ User's Drive: Creates folder in authenticated user's Google Drive
     
     This endpoint:
-    1. Creates main "SOCIAL_MEDIA_POSTER" folder in Drive
-    2. Shares folder with admin users
-    3. Saves folder ID to configuration
-    4. Marks setup as complete
+    1. Creates workspace folder in user's Drive
+    2. Saves folder ID to workspace
+    3. Marks workspace setup as complete
     
-    Should be called once during initial application setup
+    Folder structure:
+    - SOCIAL_MEDIA_POSTER/
+      └── {workspace_name}/
+          ├── Customers/
+          └── Events/
+    
     Returns folder ID and web link
     """
     try:
-        print(f"\n📁 Setting up Google Drive structure...")
-        print(f"   Initiated by: {current_user.email}")
+        print(f"\n📁 Setting up Google Drive for workspace...")
+        print(f"   Workspace: {workspace.name}")
+        print(f"   User: {current_user.email}")
         
-        # Check if setup already complete
-        setup_complete = get_config_value(db, "drive_setup_complete")
-        if setup_complete == "true":
-            folder_id = get_config_value(db, "drive_folder_id")
-            folder_name = get_config_value(db, "drive_folder_name")
-            
-            print(f"⚠️  Setup already complete")
-            print(f"   Folder: {folder_name}")
-            print(f"   ID: {folder_id}")
+        # Check if workspace already has Drive setup
+        if workspace.drive_folder_id:
+            print(f"⚠️  Workspace already has Drive folder")
+            print(f"   Folder ID: {workspace.drive_folder_id}")
             
             return {
-                "message": "Drive setup already complete",
+                "message": "Workspace Drive folder already configured",
                 "already_setup": True,
-                "folder_id": folder_id,
-                "folder_name": folder_name,
-                "folder_link": f"https://drive.google.com/drive/folders/{folder_id}"
+                "folder_id": workspace.drive_folder_id,
+                "workspace_name": workspace.name,
+                "folder_link": f"https://drive.google.com/drive/folders/{workspace.drive_folder_id}"
             }
         
-        # Get Drive service
-        drive_service = get_drive_service()
+        # Get Drive service with user's OAuth token
+        drive_service = get_drive_service(current_user)
         
-        # Get folder name from config (default: SOCIAL_MEDIA_POSTER)
-        folder_name = get_config_value(db, "drive_folder_name") or "SOCIAL_MEDIA_POSTER"
+        # Step 1: Find or create main "SOCIAL_MEDIA_POSTER" folder
+        print(f"   Looking for main SOCIAL_MEDIA_POSTER folder...")
+        main_folder = await drive_service.find_folder_by_name("SOCIAL_MEDIA_POSTER")
         
-        print(f"   Creating folder: {folder_name}")
+        if main_folder:
+            print(f"✅ Found existing main folder: {main_folder['id']}")
+            main_folder_id = main_folder['id']
+        else:
+            print(f"   Creating main SOCIAL_MEDIA_POSTER folder...")
+            main_folder_data = await drive_service.create_folder(
+                folder_name="SOCIAL_MEDIA_POSTER",
+                parent_id=None  # Root
+            )
+            main_folder_id = main_folder_data['id']
+            print(f"✅ Created main folder: {main_folder_id}")
         
-        # Create main folder
-        folder_id = drive_service.create_folder(
-            folder_name=folder_name,
-            parent_folder_id=None  # Create in root
+        # Step 2: Create workspace folder inside main folder
+        workspace_folder_name = workspace.name or f"Workspace_{workspace.workspace_id}"
+        print(f"   Creating workspace folder: {workspace_folder_name}")
+        
+        workspace_folder = await drive_service.create_folder(
+            folder_name=workspace_folder_name,
+            parent_id=main_folder_id
+        )
+        workspace_folder_id = workspace_folder['id']
+        
+        print(f"✅ Workspace folder created: {workspace_folder_id}")
+        
+        # Step 3: Create subfolders (Customers, Events)
+        print(f"   Creating subfolders...")
+        
+        customers_folder = await drive_service.create_folder(
+            folder_name="Customers",
+            parent_id=workspace_folder_id
         )
         
-        print(f"✅ Folder created")
-        print(f"   ID: {folder_id}")
+        events_folder = await drive_service.create_folder(
+            folder_name="Events",
+            parent_id=workspace_folder_id
+        )
         
-        # Share with admin users
-        admin_emails = [
-            "toolhubbe@gmail.com",
-            "dpelssers@gmail.com"
-        ]
+        print(f"✅ Subfolders created")
+        print(f"   Customers: {customers_folder['id']}")
+        print(f"   Events: {events_folder['id']}")
         
-        print(f"   Sharing with admins...")
-        drive_service.share_folder_with_users(folder_id, admin_emails)
-        print(f"✅ Shared with {len(admin_emails)} users")
-        
-        # Update configuration
-        update_config_value(db, "drive_folder_id", folder_id)
-        update_config_value(db, "drive_setup_complete", "true")
+        # Step 4: Update workspace with folder IDs
+        workspace.drive_folder_id = workspace_folder_id
+        workspace.drive_customers_folder_id = customers_folder['id']
+        workspace.drive_events_folder_id = events_folder['id']
+        workspace.drive_setup_complete = True
         
         # Log the setup
         AuditLog.log(
             db=db,
             user_id=current_user.user_id,
-            action="drive_setup_complete",
-            entity_type="configuration",
-            entity_id=None,  # No entity_id for Drive setup
+            action="workspace_drive_setup",
+            entity_type="workspace",
+            entity_id=workspace.workspace_id,
             details={
-                "folder_name": folder_name,
-                "folder_id": folder_id,
-                "shared_with": admin_emails
+                "workspace_name": workspace.name,
+                "workspace_folder_id": workspace_folder_id,
+                "customers_folder_id": customers_folder['id'],
+                "events_folder_id": events_folder['id']
             }
         )
         
         db.commit()
         
-        print(f"✅ Drive setup complete!")
+        print(f"✅ Workspace Drive setup complete!")
         
         return {
-            "message": "Drive setup completed successfully",
-            "folder_id": folder_id,
-            "folder_name": folder_name,
-            "folder_link": f"https://drive.google.com/drive/folders/{folder_id}",
-            "shared_with": admin_emails,
+            "message": "Workspace Drive setup completed successfully",
+            "workspace_id": str(workspace.workspace_id),
+            "workspace_name": workspace.name,
+            "folders": {
+                "workspace": {
+                    "id": workspace_folder_id,
+                    "name": workspace_folder_name,
+                    "link": workspace_folder['webViewLink']
+                },
+                "customers": {
+                    "id": customers_folder['id'],
+                    "link": customers_folder['webViewLink']
+                },
+                "events": {
+                    "id": events_folder['id'],
+                    "link": events_folder['webViewLink']
+                }
+            },
             "setup_complete": True
         }
         
@@ -181,53 +218,69 @@ async def setup_drive_structure(
 
 
 # ============================================================================
-# DRIVE STATUS - Check Configuration
+# WORKSPACE DRIVE STATUS
 # ============================================================================
 
 @router.get("/status")
-async def get_drive_status(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+async def get_workspace_drive_status(
+    workspace: Workspace = Depends(get_current_workspace),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
-    Check Google Drive setup status
+    Check Google Drive setup status for workspace
+    
+    ✅ Workspace Specific: Shows status for current workspace only
     
     Returns:
-    - Whether setup is complete
-    - Folder ID and name if configured
-    - Service account status
-    - Folder link if available
+    - Whether workspace Drive setup is complete
+    - Folder IDs if configured
+    - User's Google OAuth status
+    - Folder links if available
     """
     try:
-        # Get configuration values
-        setup_complete = get_config_value(db, "drive_setup_complete") == "true"
-        folder_id = get_config_value(db, "drive_folder_id")
-        folder_name = get_config_value(db, "drive_folder_name")
+        # Check user's Google OAuth status
+        has_google_token = bool(current_user.google_access_token)
+        token_expired = False
         
-        # Check if service account credentials exist
-        credentials_path = os.path.join(os.getcwd(), "service-account.json")
-        credentials_exist = os.path.exists(credentials_path)
+        if has_google_token and current_user.token_expires_at:
+            from datetime import datetime, timezone
+            token_expired = datetime.now(timezone.utc) > current_user.token_expires_at
         
-        # Check if Drive service can be initialized
-        service_available = False
-        try:
-            get_drive_service()
-            service_available = True
-        except:
-            pass
+        # Get workspace Drive configuration
+        setup_complete = workspace.drive_setup_complete or False
+        workspace_folder_id = workspace.drive_folder_id
         
         response = {
+            "workspace_id": str(workspace.workspace_id),
+            "workspace_name": workspace.name,
             "setup_complete": setup_complete,
-            "folder_id": folder_id,
-            "folder_name": folder_name,
-            "credentials_configured": credentials_exist,
-            "service_available": service_available,
-            "ready_for_use": setup_complete and service_available
+            "folder_id": workspace_folder_id,
+            "user_has_google_token": has_google_token,
+            "google_token_expired": token_expired,
+            "ready_for_use": setup_complete and has_google_token and not token_expired
         }
         
-        # Add folder link if setup complete
-        if setup_complete and folder_id:
-            response["folder_link"] = f"https://drive.google.com/drive/folders/{folder_id}"
+        # Add folder links if setup complete
+        if setup_complete and workspace_folder_id:
+            response["folders"] = {
+                "workspace": {
+                    "id": workspace_folder_id,
+                    "link": f"https://drive.google.com/drive/folders/{workspace_folder_id}"
+                }
+            }
+            
+            if workspace.drive_customers_folder_id:
+                response["folders"]["customers"] = {
+                    "id": workspace.drive_customers_folder_id,
+                    "link": f"https://drive.google.com/drive/folders/{workspace.drive_customers_folder_id}"
+                }
+            
+            if workspace.drive_events_folder_id:
+                response["folders"]["events"] = {
+                    "id": workspace.drive_events_folder_id,
+                    "link": f"https://drive.google.com/drive/folders/{workspace.drive_events_folder_id}"
+                }
         
         return response
         
@@ -240,7 +293,7 @@ async def get_drive_status(
 
 
 # ============================================================================
-# VERIFY FOLDER - Check if Folder Exists
+# VERIFY FOLDER
 # ============================================================================
 
 @router.post("/verify-folder")
@@ -251,51 +304,39 @@ async def verify_folder_exists(
     """
     Verify if a Google Drive folder exists and is accessible
     
+    ✅ Uses user's OAuth token to check access
+    
     Parameters:
     - folder_id: Google Drive folder ID to verify
     
     Returns:
     - exists: Whether folder exists
-    - accessible: Whether service account can access it
+    - accessible: Whether user can access it
     - folder_name: Name of folder if accessible
     """
     try:
-        drive_service = get_drive_service()
+        drive_service = get_drive_service(current_user)
         
-        # Try to get folder metadata
-        try:
-            # This will raise an exception if folder doesn't exist or isn't accessible
-            folder_name = drive_service.service.files().get(
-                fileId=folder_id,
-                fields='name'
-            ).execute().get('name')
-            
+        # Try to get folder info
+        folder_info = await drive_service.get_folder_info(folder_id)
+        
+        if folder_info:
             return {
                 "exists": True,
                 "accessible": True,
                 "folder_id": folder_id,
-                "folder_name": folder_name,
-                "folder_link": f"https://drive.google.com/drive/folders/{folder_id}"
+                "folder_name": folder_info.get('name'),
+                "folder_link": folder_info.get('webViewLink'),
+                "created_time": folder_info.get('createdTime'),
+                "modified_time": folder_info.get('modifiedTime')
             }
-            
-        except Exception as e:
-            error_msg = str(e)
-            
-            # Parse error to determine if folder doesn't exist or isn't accessible
-            if "not found" in error_msg.lower():
-                return {
-                    "exists": False,
-                    "accessible": False,
-                    "folder_id": folder_id,
-                    "error": "Folder not found"
-                }
-            else:
-                return {
-                    "exists": True,  # Might exist
-                    "accessible": False,
-                    "folder_id": folder_id,
-                    "error": "Folder not accessible by service account"
-                }
+        else:
+            return {
+                "exists": False,
+                "accessible": False,
+                "folder_id": folder_id,
+                "error": "Folder not found or not accessible"
+            }
         
     except HTTPException:
         raise
@@ -308,17 +349,196 @@ async def verify_folder_exists(
 
 
 # ============================================================================
-# RESET SETUP - Admin Only (For Development)
+# CREATE CUSTOMER FOLDER
 # ============================================================================
 
-@router.post("/reset-setup")
-async def reset_drive_setup(
-    confirm: bool = False,
+@router.post("/create-customer-folder")
+async def create_customer_folder(
+    customer_id: str,
+    customer_name: str,
+    workspace: Workspace = Depends(get_current_workspace),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Reset Drive setup configuration (Does NOT delete folders in Drive)
+    Create a Drive folder for a specific customer
+    
+    ✅ Workspace Isolated: Creates folder in workspace's Customers folder
+    ✅ User's Drive: Uses user's OAuth token
+    
+    Args:
+        customer_id: Customer UUID
+        customer_name: Customer name for folder
+    
+    Returns:
+        Folder info with ID and link
+    """
+    try:
+        # Check if workspace has Drive setup
+        if not workspace.drive_setup_complete or not workspace.drive_customers_folder_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workspace Drive not set up. Please run /drive/setup first."
+            )
+        
+        drive_service = get_drive_service(current_user)
+        
+        # Sanitize customer name for folder
+        folder_name = customer_name.strip().replace(' ', '_')
+        folder_name = ''.join(c for c in folder_name if c.isalnum() or c == '_')
+        
+        # Create folder in workspace's Customers folder
+        folder = await drive_service.create_folder(
+            folder_name=folder_name,
+            parent_id=workspace.drive_customers_folder_id
+        )
+        
+        # Log the creation
+        AuditLog.log(
+            db=db,
+            user_id=current_user.user_id,
+            action="customer_folder_created",
+            entity_type="customer",
+            entity_id=customer_id,
+            details={
+                "folder_id": folder['id'],
+                "folder_name": folder_name,
+                "workspace_id": str(workspace.workspace_id)
+            }
+        )
+        
+        db.commit()
+        
+        return {
+            "folder_id": folder['id'],
+            "folder_name": folder['name'],
+            "folder_link": folder['webViewLink'],
+            "parent_folder_id": workspace.drive_customers_folder_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error creating customer folder: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create customer folder: {str(e)}"
+        )
+
+
+# ============================================================================
+# CREATE EVENT FOLDER
+# ============================================================================
+
+@router.post("/create-event-folder")
+async def create_event_folder(
+    event_id: str,
+    event_name: str,
+    customer_folder_id: Optional[str] = None,
+    workspace: Workspace = Depends(get_current_workspace),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a Drive folder for a specific event
+    
+    ✅ Workspace Isolated: Creates folder in workspace's Events folder or customer folder
+    ✅ User's Drive: Uses user's OAuth token
+    
+    Args:
+        event_id: Event UUID
+        event_name: Event name for folder
+        customer_folder_id: Optional - create in customer's folder instead of Events folder
+    
+    Returns:
+        Folder info with ID and link
+    """
+    try:
+        # Check if workspace has Drive setup
+        if not workspace.drive_setup_complete:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workspace Drive not set up. Please run /drive/setup first."
+            )
+        
+        drive_service = get_drive_service(current_user)
+        
+        # Sanitize event name for folder
+        folder_name = event_name.strip().replace(' ', '_')
+        folder_name = ''.join(c for c in folder_name if c.isalnum() or c == '_')
+        
+        # Determine parent folder
+        if customer_folder_id:
+            parent_id = customer_folder_id
+        else:
+            if not workspace.drive_events_folder_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Workspace Events folder not configured"
+                )
+            parent_id = workspace.drive_events_folder_id
+        
+        # Create folder
+        folder = await drive_service.create_folder(
+            folder_name=folder_name,
+            parent_id=parent_id
+        )
+        
+        # Create subfolders for event
+        photos_folder = await drive_service.create_folder(
+            folder_name="Photos",
+            parent_id=folder['id']
+        )
+        
+        # Log the creation
+        AuditLog.log(
+            db=db,
+            user_id=current_user.user_id,
+            action="event_folder_created",
+            entity_type="event",
+            entity_id=event_id,
+            details={
+                "folder_id": folder['id'],
+                "folder_name": folder_name,
+                "photos_folder_id": photos_folder['id'],
+                "workspace_id": str(workspace.workspace_id)
+            }
+        )
+        
+        db.commit()
+        
+        return {
+            "folder_id": folder['id'],
+            "folder_name": folder['name'],
+            "folder_link": folder['webViewLink'],
+            "photos_folder_id": photos_folder['id'],
+            "photos_folder_link": photos_folder['webViewLink'],
+            "parent_folder_id": parent_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error creating event folder: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create event folder: {str(e)}"
+        )
+
+
+# ============================================================================
+# RESET WORKSPACE SETUP (Admin/Development)
+# ============================================================================
+
+@router.post("/reset-setup")
+async def reset_workspace_drive_setup(
+    confirm: bool = False,
+    workspace: Workspace = Depends(get_current_workspace),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Reset workspace Drive setup configuration
     
     ⚠️  WARNING: This only resets database configuration.
     Folders in Google Drive will remain. Use this if you need to
@@ -327,7 +547,7 @@ async def reset_drive_setup(
     Parameters:
     - confirm: Must be true to proceed
     
-    Admin use only - for development/testing
+    For development/testing only
     """
     if not confirm:
         raise HTTPException(
@@ -336,42 +556,45 @@ async def reset_drive_setup(
         )
     
     try:
-        print(f"\n⚠️  Resetting Drive setup...")
-        print(f"   Initiated by: {current_user.email}")
+        print(f"\n⚠️  Resetting workspace Drive setup...")
+        print(f"   Workspace: {workspace.name}")
+        print(f"   User: {current_user.email}")
         
         # Get current values for logging
-        folder_id = get_config_value(db, "drive_folder_id")
-        folder_name = get_config_value(db, "drive_folder_name")
+        old_folder_id = workspace.drive_folder_id
         
         # Reset configuration
-        update_config_value(db, "drive_folder_id", "")
-        update_config_value(db, "drive_setup_complete", "false")
+        workspace.drive_folder_id = None
+        workspace.drive_customers_folder_id = None
+        workspace.drive_events_folder_id = None
+        workspace.drive_setup_complete = False
         
         # Log the reset
         AuditLog.log(
             db=db,
             user_id=current_user.user_id,
-            action="drive_setup_reset",
-            entity_type="configuration",
-            entity_id=None,  # No entity_id for Drive reset
+            action="workspace_drive_reset",
+            entity_type="workspace",
+            entity_id=workspace.workspace_id,
             details={
-                "previous_folder_name": folder_name,
-                "previous_folder_id": folder_id,
+                "workspace_name": workspace.name,
+                "previous_folder_id": old_folder_id,
                 "warning": "Folders not deleted from Drive"
             }
         )
         
         db.commit()
         
-        print(f"✅ Setup reset complete")
-        print(f"   Previous folder: {folder_name} ({folder_id})")
-        print(f"   ⚠️  Folder still exists in Google Drive!")
+        print(f"✅ Workspace Drive setup reset")
+        print(f"   Previous folder: {old_folder_id}")
+        print(f"   ⚠️  Folders still exist in Google Drive!")
         
         return {
-            "message": "Drive setup reset successfully",
+            "message": "Workspace Drive setup reset successfully",
+            "workspace_id": str(workspace.workspace_id),
+            "workspace_name": workspace.name,
             "warning": "Folders in Google Drive were NOT deleted",
-            "previous_folder_id": folder_id,
-            "previous_folder_name": folder_name,
+            "previous_folder_id": old_folder_id,
             "can_setup_again": True
         }
         
@@ -388,32 +611,28 @@ async def reset_drive_setup(
 # ============================================================================
 
 @router.get("/health")
-async def drive_health_check():
+async def drive_health_check(
+    current_user: User = Depends(get_current_user)
+):
     """
-    Check if Google Drive integration is healthy
+    Check if Google Drive integration is healthy for current user
     
-    Returns configuration status without requiring authentication
+    Returns user's OAuth status
     """
     try:
-        # Check if credentials file exists
-        credentials_path = os.path.join(os.getcwd(), "service-account.json")
-        credentials_exist = os.path.exists(credentials_path)
+        has_token = bool(current_user.google_access_token)
+        token_expired = False
         
-        # Try to initialize service
-        service_available = False
-        error_message = None
-        try:
-            get_drive_service()
-            service_available = True
-        except Exception as e:
-            error_message = str(e)
+        if has_token and current_user.token_expires_at:
+            from datetime import datetime, timezone
+            token_expired = datetime.now(timezone.utc) > current_user.token_expires_at
         
         return {
-            "status": "healthy" if service_available else "unhealthy",
-            "credentials_configured": credentials_exist,
-            "service_available": service_available,
-            "credentials_path": credentials_path,
-            "error": error_message if not service_available else None
+            "status": "healthy" if (has_token and not token_expired) else "unhealthy",
+            "user_email": current_user.email,
+            "has_google_token": has_token,
+            "token_expired": token_expired,
+            "ready_for_drive": has_token and not token_expired
         }
         
     except Exception as e:

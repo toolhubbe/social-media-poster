@@ -2,12 +2,12 @@
 ==========================================
 SOCIAL MEDIA POSTER - CUSTOMER API ENDPOINTS
 ==========================================
-Bestandslocatie: backend/app/api/customers.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/customers.py
+Bestandslocatie: app/api/customers.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/api/customers.py
 
 FastAPI routes voor customer management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
-✅ WORKSPACE ISOLATION: Users zien alleen customers van hun workspace
+✅ MULTI-TENANT: Users zien alleen hun eigen customers
 ✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
 """
 
@@ -20,7 +20,6 @@ from ..core.database import get_db
 from ..core.config import settings
 from ..models.customer import Customer
 from ..models.user import User
-from ..models.workspace import Workspace
 from ..schemas.customer import (
     CustomerCreate,
     CustomerUpdate,
@@ -28,7 +27,7 @@ from ..schemas.customer import (
     CustomerListResponse,
     CustomerSummary
 )
-from .dependencies import get_current_user, get_current_workspace
+from .dependencies import get_current_user
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -40,7 +39,6 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 @router.post("/", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 def create_customer(
     customer: CustomerCreate,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
@@ -48,28 +46,28 @@ def create_customer(
     Create a new customer
     
     ✅ OAuth Protected: Requires valid JWT token
-    ✅ Workspace Isolated: Customer is linked to user's workspace
+    ✅ User Isolation: Customer is linked to authenticated user
     ✅ User's Drive: Uses authenticated user's Google Drive (not Service Account)
     
-    The customer will be created in the user's workspace and stored in their Google Drive.
+    The customer will be created in the user's own Google Drive
+    using their OAuth access token.
     """
-    # Check if email already exists IN THIS WORKSPACE
+    # Check if email already exists FOR THIS USER
     existing = db.query(Customer).filter(
         Customer.email == customer.email,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Only check within workspace
+        Customer.user_id == current_user.user_id  # ✅ Only check within user's own data
     ).first()
     
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"A customer with email {customer.email} already exists in your workspace"
+            detail=f"You already have a customer with email {customer.email}"
         )
 
     # Create new customer in database
     db_customer = Customer(
         **customer.model_dump(),
-        workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-        created_by_user_id=current_user.user_id  # ✅ Track creator
+        user_id=current_user.user_id  # ✅ Link customer to user
     )
     
     db.add(db_customer)
@@ -80,8 +78,7 @@ def create_customer(
     # This will use the authenticated user's Google Drive, not a Service Account
     # Implementation will be added in Phase 2 after OAuth is fully working
     
-    print(f"✅ Customer created in workspace: {workspace.name}")
-    print(f"   User: {current_user.email}")
+    print(f"✅ Customer created for user: {current_user.email}")
     print(f"   Customer: {db_customer.company_name or db_customer.email}")
     print(f"   Customer ID: {db_customer.customer_id}")
 
@@ -98,18 +95,18 @@ def list_customers(
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by status"),
     search: Optional[str] = Query(None, description="Search in email/name/company"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get list of customers with pagination and filters
     
-    ✅ OAuth Protected: Only returns customers from user's workspace
-    ✅ Workspace Isolation: User can only see customers in their workspace
+    ✅ OAuth Protected: Only returns customers owned by authenticated user
+    ✅ Multi-tenant: User can only see their own customers
     """
-    # Base query - ONLY workspace's customers
+    # Base query - ONLY user's own customers
     query = db.query(Customer).filter(
-        Customer.workspace_id == workspace.workspace_id  # ✅ Critical: Filter by workspace
+        Customer.user_id == current_user.user_id  # ✅ Critical: Filter by user
     )
 
     # Apply filters
@@ -147,16 +144,16 @@ def list_customers(
 @router.get("/summary", response_model=List[CustomerSummary])
 def get_customers_summary(
     status: str = Query("active", description="Filter by status"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get lightweight customer list for dropdowns
     
-    ✅ OAuth Protected: Only returns workspace's customers
+    ✅ OAuth Protected: Only returns user's own customers
     """
     customers = db.query(Customer).filter(
-        Customer.workspace_id == workspace.workspace_id,  # ✅ Workspace filter
+        Customer.user_id == current_user.user_id,  # ✅ User's own data only
         Customer.status == status
     ).all()
 
@@ -178,24 +175,24 @@ def get_customers_summary(
 @router.get("/{customer_id}", response_model=CustomerResponse)
 def get_customer(
     customer_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Get a specific customer by ID
     
-    ✅ OAuth Protected: User can only access customers in their workspace
-    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
+    ✅ OAuth Protected: User can only access their own customers
+    ✅ Authorization: Returns 404 if customer doesn't belong to user
     """
     customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
 
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     return customer
@@ -209,38 +206,38 @@ def get_customer(
 def update_customer(
     customer_id: UUID,
     customer_update: CustomerUpdate,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Update a customer
     
-    ✅ OAuth Protected: User can only update customers in their workspace
-    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
+    ✅ OAuth Protected: User can only update their own customers
+    ✅ Authorization: Returns 404 if customer doesn't belong to user
     """
-    # Get customer with workspace verification
+    # Get customer with ownership verification
     db_customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
 
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
-    # Check if email is being changed and if new email already exists (in this workspace)
+    # Check if email is being changed and if new email already exists (for this user)
     if customer_update.email and customer_update.email != db_customer.email:
         existing = db.query(Customer).filter(
             Customer.email == customer_update.email,
-            Customer.workspace_id == workspace.workspace_id  # ✅ Only check workspace
+            Customer.user_id == current_user.user_id  # ✅ Only check user's own customers
         ).first()
         
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"A customer with email {customer_update.email} already exists in your workspace"
+                detail=f"You already have a customer with email {customer_update.email}"
             )
 
     # Update fields
@@ -262,25 +259,25 @@ def update_customer(
 def delete_customer(
     customer_id: UUID,
     hard_delete: bool = Query(False, description="Permanently delete (true) or soft delete (false)"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Delete a customer
     
-    ✅ OAuth Protected: User can only delete customers in their workspace
-    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
+    ✅ OAuth Protected: User can only delete their own customers
+    ✅ Authorization: Returns 404 if customer doesn't belong to user
     """
-    # Get customer with workspace verification
+    # Get customer with ownership verification
     db_customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
 
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     if hard_delete:
@@ -299,23 +296,23 @@ def delete_customer(
 @router.post("/{customer_id}/archive", response_model=CustomerResponse)
 def archive_customer(
     customer_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Archive a customer
     
-    ✅ OAuth Protected: User can only archive customers in their workspace
+    ✅ OAuth Protected: User can only archive their own customers
     """
     db_customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
 
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     db_customer.status = "archived"
@@ -332,23 +329,23 @@ def archive_customer(
 @router.post("/{customer_id}/restore", response_model=CustomerResponse)
 def restore_customer(
     customer_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
     Restore an archived or deleted customer
     
-    ✅ OAuth Protected: User can only restore customers in their workspace
+    ✅ OAuth Protected: User can only restore their own customers
     """
     db_customer = db.query(Customer).filter(
         Customer.customer_id == customer_id,
-        Customer.workspace_id == workspace.workspace_id  # ✅ Verify workspace
+        Customer.user_id == current_user.user_id  # ✅ Verify ownership
     ).first()
 
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     db_customer.status = "active"
@@ -359,29 +356,27 @@ def restore_customer(
 
 
 # ============================================================================
-# STATISTICS
+# STATISTICS (NEW!)
 # ============================================================================
 
 @router.get("/stats/overview")
 def get_customer_stats(
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
-    Get customer statistics for current workspace
+    Get customer statistics for current user
     
-    ✅ OAuth Protected: Only shows stats for workspace's customers
+    ✅ OAuth Protected: Only shows stats for user's own customers
     
     Returns:
-        - total: Total customers in workspace
+        - total: Total customers
         - active: Active customers
         - archived: Archived customers
         - deleted: Deleted customers
-        - workspace_name: Name of the workspace
     """
     base_query = db.query(Customer).filter(
-        Customer.workspace_id == workspace.workspace_id  # ✅ Workspace filter
+        Customer.user_id == current_user.user_id
     )
     
     total = base_query.count()
@@ -394,7 +389,5 @@ def get_customer_stats(
         "active": active,
         "archived": archived,
         "deleted": deleted,
-        "workspace_id": str(workspace.workspace_id),
-        "workspace_name": workspace.name,
         "user_email": current_user.email
     }

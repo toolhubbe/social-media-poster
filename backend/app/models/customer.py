@@ -5,10 +5,10 @@ SOCIAL MEDIA POSTER - CUSTOMER MODEL
 Bestandslocatie: social_media_poster_backend/app/models/customer.py
 
 SQLAlchemy model voor customers tabel
-✅ UPDATED: Event relatie toegevoegd + Compatible met bestaande database (status veld)
+✅ UPDATED: Workspace support added - customers now belong to a user's workspace
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, func
+from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -18,11 +18,32 @@ from ..core.database import Base
 class Customer(Base):
     """
     Customer model - represents a client/company in the system
+    
+    ✅ WORKSPACE SUPPORT:
+    - Each customer belongs to one workspace
+    - Users can only see customers in their workspace
+    - Complete data isolation between users
     """
     __tablename__ = "customers"
     
     # Primary Key
     customer_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # ✅ NEW: Workspace (data isolation)
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('workspaces.workspace_id', ondelete='CASCADE'),
+        nullable=True,  # Nullable for migration compatibility
+        index=True
+    )
+    
+    # ✅ NEW: Created by user
+    created_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey('users.user_id'),
+        nullable=True,
+        index=True
+    )
     
     # Basic Info
     email = Column(String(255), unique=True, nullable=False, index=True)
@@ -42,15 +63,22 @@ class Customer(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by = Column(String(100), default="system")
+    created_by_name = Column(String(100), default="system")  # Legacy field
     
-    # ✅ NIEUWE RELATIE: Events
-    # Een customer kan meerdere events hebben (one-to-many)
+    # ✅ RELATIONSHIPS
+    
+    # Workspace this customer belongs to
+    workspace = relationship("Workspace", back_populates="customers")
+    
+    # User who created this customer
+    creator = relationship("User", foreign_keys=[created_by])
+    
+    # Events for this customer (one-to-many)
     events = relationship(
         "Event",
         back_populates="customer",
-        cascade="all, delete-orphan",  # Als customer wordt verwijderd, ook events verwijderen
-        lazy="select"  # Events worden alleen geladen als je ze opvraagt
+        cascade="all, delete-orphan",
+        lazy="select"
     )
     
     def __repr__(self):
@@ -60,6 +88,8 @@ class Customer(Base):
         """Convert model to dictionary"""
         return {
             "customer_id": str(self.customer_id),
+            "workspace_id": str(self.workspace_id) if self.workspace_id else None,
+            "created_by": str(self.created_by) if self.created_by else None,
             "email": self.email,
             "first_name": self.first_name,
             "last_name": self.last_name,
@@ -70,7 +100,7 @@ class Customer(Base):
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "created_by": self.created_by
+            "created_by_name": self.created_by_name
         }
     
     @property
@@ -85,13 +115,11 @@ class Customer(Base):
         """Check if customer is active"""
         return self.status == "active"
     
-    # ✅ NIEUWE PROPERTY: Check if archived via status
     @property
     def archived(self):
         """Check if customer is archived (backwards compatibility)"""
         return self.status == "archived"
     
-    # ✅ NIEUWE PROPERTY: Event count
     @property
     def event_count(self):
         """Get total number of events for this customer"""

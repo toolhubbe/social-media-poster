@@ -54,7 +54,6 @@ class UserResponse(UserBase):
     """
     Full user response for authenticated user (their own profile)
     Includes sensitive info like subscription status
-    ✅ UPDATED: Added workspace fields
     """
     user_id: UUID
     email_verified: bool
@@ -62,13 +61,6 @@ class UserResponse(UserBase):
     is_superuser: bool
     subscription_status: str
     subscription_expires_at: Optional[datetime] = None
-    
-    # ✅ NEW: Workspace fields
-    current_workspace_id: Optional[UUID] = None
-    default_workspace_id: Optional[UUID] = None
-    onboarding_completed: bool = False
-    onboarding_step: int = 0
-    
     created_at: datetime
     last_login_at: Optional[datetime] = None
     

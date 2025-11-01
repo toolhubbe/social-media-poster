@@ -1,7 +1,7 @@
 """
 OAuth 2.0 Authentication Endpoints
-File Location: app/api/auth.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/api/auth.py
+File Location: backend/app/api/auth.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/auth.py
 
 Google OAuth 2.0 authentication flow endpoints:
 - Login (redirect to Google)
@@ -18,6 +18,7 @@ from typing import Optional
 import httpx
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
+import logging
 
 from ..core.database import get_db
 from ..core.oauth_config import oauth_settings
@@ -35,9 +36,11 @@ from ..schemas.user import (
     MessageResponse
 )
 from .dependencies import get_current_user
+from ..services.workspace_service import WorkspaceService  # ✨ NEW: Import WorkspaceService
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -101,8 +104,9 @@ async def google_callback(
     2. Exchange code for tokens
     3. Get user info from Google
     4. Create or update user in database
-    5. Create JWT tokens
-    6. Redirect to frontend with tokens
+    5. ✨ Auto-create personal workspace if needed
+    6. Create JWT tokens
+    7. Redirect to frontend with tokens
     """
     
     # Check for errors from Google
@@ -207,6 +211,8 @@ async def google_callback(
         # Check if user exists
         user = db.query(User).filter(User.google_user_id == google_user_id).first()
         
+        is_new_user = False
+        
         if user:
             # Update existing user
             print(f"✅ User exists, updating...")
@@ -230,6 +236,7 @@ async def google_callback(
         else:
             # Create new user
             print(f"✅ New user, creating account...")
+            is_new_user = True
             
             user = User(
                 google_user_id=google_user_id,
@@ -258,6 +265,33 @@ async def google_callback(
         db.refresh(user)
         
         print(f"✅ User saved to database: {user.user_id}")
+        
+        # ================================================================
+        # ✨ STEP 3.5: AUTO-CREATE PERSONAL WORKSPACE (NEW!)
+        # ================================================================
+        
+        # Check if user needs a workspace
+        if is_new_user or not user.current_workspace_id:
+            try:
+                logger.info(f"🏢 Creating personal workspace for user {user.user_id}")
+                
+                # Create personal workspace using WorkspaceService
+                workspace = WorkspaceService.create_personal_workspace(
+                    db=db,
+                    user_id=user.user_id
+                )
+                
+                logger.info(f"✅ Auto-created workspace {workspace.workspace_id} for user {user.email}")
+                print(f"✅ Personal workspace created: {workspace.workspace_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to create workspace for user {user.user_id}: {str(e)}")
+                print(f"❌ Workspace creation failed: {e}")
+                # Don't fail login if workspace creation fails
+                # User can create it manually later
+        else:
+            logger.info(f"ℹ️ User {user.user_id} already has workspace {user.current_workspace_id}")
+            print(f"ℹ️ User already has workspace: {user.current_workspace_id}")
         
         # ================================================================
         # STEP 4: Create JWT tokens for our app

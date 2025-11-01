@@ -13,11 +13,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const DriveSetup = () => {
-  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [setupLoading, setSetupLoading] = useState(false);
@@ -229,22 +227,14 @@ const DriveSetup = () => {
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="button-row">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="btn btn-outline"
-            >
-              ← Back to Dashboard
-            </button>
-            <button
-              onClick={fetchDriveStatus}
-              disabled={loading || setupLoading}
-              className="btn btn-outline"
-            >
-              🔄 Refresh Status
-            </button>
-          </div>
+          {/* Refresh Button */}
+          <button
+            onClick={fetchDriveStatus}
+            disabled={loading || setupLoading}
+            className="btn btn-outline btn-full"
+          >
+            🔄 Refresh Status
+          </button>
         </div>
       </div>
 
@@ -514,13 +504,6 @@ const DriveSetup = () => {
           margin-top: 0.5rem;
         }
 
-        .button-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-          margin-top: 1rem;
-        }
-
         .drive-link {
           display: inline-block;
           color: #667eea;
@@ -538,10 +521,6 @@ const DriveSetup = () => {
         /* Responsive */
         @media (max-width: 640px) {
           .status-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .button-row {
             grid-template-columns: 1fr;
           }
 
