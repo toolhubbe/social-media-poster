@@ -2,10 +2,11 @@
  * Event List Page
  * 
  * Bestandslocatie: frontend/src/pages/events/EventList.jsx
- * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/events/EventList.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/events/EventList.jsx
  * 
  * Overzichtspagina met alle events
  * Features: zoeken, filteren op status/type, sorteer op datum
+ * ✅ FIXED: Now handles paginated API response with items array
  */
 
 import React, { useState, useEffect } from 'react';
@@ -38,13 +39,20 @@ const EventList = () => {
       setLoading(true);
       setError(null);
       
-      const params = {};
+      const params = {
+        page_size: 1000  // Request lots of events at once
+      };
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
       
       const response = await api.get('/events/', { params });
-      setEvents(response.data);
+      
+      // ✅ FIXED: API now returns paginated response with 'items' array
+      const eventsData = response.data.items || response.data || [];
+      setEvents(eventsData);
+      
+      console.log(`Loaded ${eventsData.length} events from API`);
     } catch (err) {
       console.error('Failed to fetch events:', err);
       setError('Kon events niet laden. Probeer het opnieuw.');
