@@ -12,12 +12,10 @@ FastAPI routes voor photo management
 ✅ Single & multiple photo upload
 ✅ Photo metadata extraction
 ✅ Gallery endpoints
-✅ NEW: Complete Google Drive integration for uploads
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List, Optional
 from uuid import UUID
 import os
@@ -38,8 +36,7 @@ from ..schemas.photo import (
     PhotoUploadResponse,
     MultiplePhotoUploadResponse
 )
-from .dependencies import get_current_user  # ✅ OAuth dependency
-from ..services.drive_service import get_drive_service  # ✅ NEW: Import Drive service
+from .dependencies import get_current_user  # ✅ NEW: OAuth dependency
 
 router = APIRouter(prefix="/photos", tags=["photos"])
 
@@ -136,13 +133,6 @@ async def upload_photo(
             detail="Event does not have a Google Drive folder. Please contact support."
         )
     
-    # Check if user has Google access token
-    if not current_user.google_access_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google Drive access token not found. Please re-authenticate."
-        )
-    
     # Validate file type
     allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
     if file.content_type not in allowed_types:
@@ -170,20 +160,9 @@ async def upload_photo(
         # Sanitize filename
         safe_filename = sanitize_filename(file.filename)
         
-        # ✅ NEW: Upload to user's Google Drive
-        print(f"📤 Uploading to Google Drive...")
-        drive_service = get_drive_service(current_user.google_access_token)
-        
-        drive_result = await drive_service.upload_file(
-            file_content=file_content,
-            filename=safe_filename,
-            mime_type=metadata.get('mime_type') or file.content_type,
-            parent_folder_id=event.google_drive_folder_id
-        )
-        
-        print(f"✅ Drive upload successful!")
-        print(f"   Drive File ID: {drive_result['id']}")
-        print(f"   Drive URL: {drive_result['webViewLink']}")
+        # ✅ TODO: Upload to user's Google Drive using their OAuth token
+        # For now, we'll create the database record without Drive upload
+        # This will be implemented when GoogleDriveService supports OAuth tokens
         
         # Create photo record in database
         db_photo = Photo(
@@ -195,9 +174,8 @@ async def upload_photo(
             mime_type=metadata.get('mime_type') or file.content_type,
             width=metadata.get('width'),
             height=metadata.get('height'),
-            google_drive_file_id=drive_result['id'],  # ✅ NEW: Store Drive file ID
-            google_drive_url=drive_result['webViewLink'],  # ✅ NEW: Store Drive URL
-            thumbnail_url=drive_result.get('thumbnailLink'),  # ✅ NEW: Store thumbnail if available
+            # google_drive_file_id=drive_result['file_id'],  # Will be added with Drive integration
+            # google_drive_url=drive_result['web_link'],      # Will be added with Drive integration
             description=description,
             is_featured=is_featured,
             status='active'
@@ -211,14 +189,13 @@ async def upload_photo(
         print(f"   User: {current_user.email}")
         print(f"   Event: {event.event_name}")
         print(f"   Size: {round(file_size / 1024, 2)} KB")
-        print(f"   Database ID: {db_photo.photo_id}")
         
         return PhotoUploadResponse(
             photo_id=db_photo.photo_id,
             filename=safe_filename,
             file_size=file_size,
-            google_drive_url=drive_result['webViewLink'],
-            message="Photo uploaded successfully to Google Drive"
+            google_drive_url=None,  # Will be added with Drive integration
+            message="Photo uploaded successfully"
         )
     
     except HTTPException:
@@ -250,7 +227,6 @@ async def upload_multiple_photos(
     ✅ Individual file validation
     ✅ Partial success handling
     ✅ Detailed error reporting
-    ✅ NEW: Google Drive batch upload
     
     Returns summary with success/failure counts
     """
@@ -272,13 +248,6 @@ async def upload_multiple_photos(
             detail="Event does not have a Google Drive folder"
         )
     
-    # Check if user has Google access token
-    if not current_user.google_access_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google Drive access token not found. Please re-authenticate."
-        )
-    
     # Initialize results
     results = {
         'total': len(files),
@@ -290,9 +259,6 @@ async def upload_multiple_photos(
     
     allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
     max_size = 10 * 1024 * 1024  # 10MB
-    
-    # Get Drive service
-    drive_service = get_drive_service(current_user.google_access_token)
     
     # Process each file
     for idx, file in enumerate(files):
@@ -325,16 +291,6 @@ async def upload_multiple_photos(
             # Sanitize filename
             safe_filename = sanitize_filename(file.filename)
             
-            # ✅ NEW: Upload to Google Drive
-            print(f"📤 [{idx+1}/{len(files)}] Uploading {safe_filename} to Drive...")
-            
-            drive_result = await drive_service.upload_file(
-                file_content=file_content,
-                filename=safe_filename,
-                mime_type=metadata.get('mime_type') or file.content_type,
-                parent_folder_id=event.google_drive_folder_id
-            )
-            
             # Create database record
             db_photo = Photo(
                 event_id=event_id,
@@ -345,9 +301,6 @@ async def upload_multiple_photos(
                 mime_type=metadata.get('mime_type') or file.content_type,
                 width=metadata.get('width'),
                 height=metadata.get('height'),
-                google_drive_file_id=drive_result['id'],  # ✅ NEW: Store Drive file ID
-                google_drive_url=drive_result['webViewLink'],  # ✅ NEW: Store Drive URL
-                thumbnail_url=drive_result.get('thumbnailLink'),  # ✅ NEW: Store thumbnail
                 display_order=idx,
                 status='active'
             )
@@ -361,10 +314,8 @@ async def upload_multiple_photos(
                 photo_id=db_photo.photo_id,
                 filename=safe_filename,
                 file_size=file_size,
-                google_drive_url=drive_result['webViewLink']
+                google_drive_url=None
             ))
-            
-            print(f"   ✅ Success: {safe_filename}")
         
         except Exception as e:
             results['failed'] += 1
@@ -372,11 +323,9 @@ async def upload_multiple_photos(
                 'filename': file.filename,
                 'error': str(e)
             })
-            print(f"   ❌ Failed: {file.filename} - {str(e)}")
     
     print(f"✅ Batch upload complete: {results['success']}/{results['total']} successful")
     print(f"   User: {current_user.email}")
-    print(f"   Event: {event.event_name}")
     
     return MultiplePhotoUploadResponse(**results)
 
@@ -388,7 +337,7 @@ async def upload_multiple_photos(
 @router.get("/event/{event_id}", response_model=List[PhotoResponse])
 def get_event_photos(
     event_id: UUID,
-    status_filter: Optional[str] = Query("active", description="Filter by status", alias="status"),
+    status: Optional[str] = Query("active", description="Filter by status"),
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
@@ -417,8 +366,8 @@ def get_event_photos(
         Photo.user_id == current_user.user_id  # ✅ Double check ownership
     )
     
-    if status_filter:
-        query = query.filter(Photo.status == status_filter)
+    if status:
+        query = query.filter(Photo.status == status)
     
     photos = query.order_by(Photo.display_order, Photo.uploaded_at.desc()).all()
     
@@ -549,7 +498,7 @@ def update_photo(
 # ============================================================================
 
 @router.delete("/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_photo(
+def delete_photo(
     photo_id: UUID,
     hard_delete: bool = Query(False, description="Permanently delete from Drive"),
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
@@ -576,15 +525,11 @@ async def delete_photo(
         )
     
     if hard_delete:
-        # ✅ NEW: Delete from user's Google Drive
-        if db_photo.google_drive_file_id and current_user.google_access_token:
-            try:
-                drive_service = get_drive_service(current_user.google_access_token)
-                await drive_service.delete_file(db_photo.google_drive_file_id)
-                print(f"✅ Deleted from Google Drive: {db_photo.google_drive_file_id}")
-            except Exception as e:
-                print(f"⚠️ Could not delete from Drive: {e}")
-                # Continue with database deletion even if Drive deletion fails
+        # ✅ TODO: Delete from user's Google Drive when Drive integration is complete
+        # if db_photo.google_drive_file_id:
+        #     drive_service = get_user_drive_service(current_user)
+        #     if drive_service:
+        #         drive_service.delete_file(db_photo.google_drive_file_id)
         
         # Delete from database
         db.delete(db_photo)
@@ -645,7 +590,7 @@ def set_featured_photo(
 
 
 # ============================================================================
-# STATISTICS
+# STATISTICS (NEW!)
 # ============================================================================
 
 @router.get("/stats/overview")

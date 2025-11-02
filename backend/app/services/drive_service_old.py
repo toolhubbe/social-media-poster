@@ -1,15 +1,13 @@
 """
 Google Drive Service
 File Location: backend/app/services/drive_service.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_backend/app/services/drive_service.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/services/drive_service.py
 
 Handles all Google Drive API operations using user's OAuth token:
 - Folder creation
 - Folder sharing
 - Permission management
 - Folder search
-- ✅ NEW: File uploads (single & multiple)
-- ✅ NEW: File deletion
 
 ✅ USER OAUTH: All operations use user's Google OAuth access token
 ✅ NO SERVICE ACCOUNT: Direct integration with user's personal Drive
@@ -19,7 +17,6 @@ Handles all Google Drive API operations using user's OAuth token:
 import httpx
 from typing import List, Dict, Optional, Tuple
 from fastapi import HTTPException, status
-import mimetypes
 
 
 class DriveService:
@@ -31,7 +28,6 @@ class DriveService:
     """
     
     DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
-    UPLOAD_API_BASE = "https://www.googleapis.com/upload/drive/v3"
     
     def __init__(self, access_token: str):
         """
@@ -45,10 +41,6 @@ class DriveService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-    
-    # ========================================================================
-    # FOLDER OPERATIONS (EXISTING)
-    # ========================================================================
     
     async def create_folder(
         self, 
@@ -381,255 +373,6 @@ class DriveService:
         print(f"   Shared with: {successful_shares}/{len(admin_emails)} users")
         
         return folder_info, share_results
-    
-    # ========================================================================
-    # FILE UPLOAD OPERATIONS (NEW! ✅)
-    # ========================================================================
-    
-    async def upload_file(
-        self,
-        file_content: bytes,
-        filename: str,
-        mime_type: str,
-        parent_folder_id: str
-    ) -> Dict:
-        """
-        Upload a single file to Google Drive
-        
-        ✅ NEW: Multipart upload for photos
-        
-        Args:
-            file_content: File content as bytes
-            filename: Name for the file in Drive
-            mime_type: MIME type (e.g., 'image/jpeg')
-            parent_folder_id: ID of parent folder
-        
-        Returns:
-            Dict with file info: {id, name, webViewLink, thumbnailLink}
-        
-        Raises:
-            HTTPException if upload fails
-        
-        Example:
-            >>> result = await drive_service.upload_file(
-            ...     file_content=image_bytes,
-            ...     filename="photo.jpg",
-            ...     mime_type="image/jpeg",
-            ...     parent_folder_id="1a2b3c4d5e"
-            ... )
-            >>> print(result['webViewLink'])
-        """
-        try:
-            print(f"📤 Uploading file: {filename} ({len(file_content)} bytes)")
-            
-            # Metadata for the file
-            metadata = {
-                "name": filename,
-                "parents": [parent_folder_id]
-            }
-            
-            # Create multipart request
-            # Part 1: Metadata (JSON)
-            # Part 2: File content (binary)
-            boundary = "===============7330845974216740156=="
-            
-            body_parts = [
-                f"--{boundary}",
-                "Content-Type: application/json; charset=UTF-8",
-                "",
-                str(metadata).replace("'", '"'),  # JSON requires double quotes
-                f"--{boundary}",
-                f"Content-Type: {mime_type}",
-                "",
-            ]
-            
-            # Join text parts
-            body_text = "\r\n".join(body_parts) + "\r\n"
-            
-            # Combine with file content
-            body_bytes = body_text.encode('utf-8') + file_content + f"\r\n--{boundary}--".encode('utf-8')
-            
-            # Upload headers
-            upload_headers = {
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": f"multipart/related; boundary={boundary}",
-                "Content-Length": str(len(body_bytes))
-            }
-            
-            # Use longer timeout for uploads (2 minutes)
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{self.UPLOAD_API_BASE}/files?uploadType=multipart",
-                    headers=upload_headers,
-                    content=body_bytes,
-                    params={
-                        "fields": "id,name,webViewLink,thumbnailLink,mimeType,size,createdTime"
-                    }
-                )
-                
-                if response.status_code == 200:
-                    file_data = response.json()
-                    print(f"✅ File uploaded: {file_data['name']} (ID: {file_data['id']})")
-                    return file_data
-                else:
-                    error_msg = response.text
-                    print(f"❌ Upload failed: {error_msg}")
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Failed to upload file: {error_msg}"
-                    )
-        
-        except httpx.TimeoutException:
-            print(f"❌ Upload timeout for {filename}")
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail=f"Upload timed out for {filename}"
-            )
-        except httpx.HTTPError as e:
-            print(f"❌ HTTP error uploading {filename}: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error communicating with Google Drive: {str(e)}"
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"❌ Unexpected error uploading {filename}: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error: {str(e)}"
-            )
-    
-    async def upload_multiple_files(
-        self,
-        files: List[Tuple[bytes, str, str]],
-        parent_folder_id: str
-    ) -> List[Dict]:
-        """
-        Upload multiple files to Google Drive
-        
-        ✅ NEW: Batch photo upload with individual error handling
-        
-        Args:
-            files: List of tuples (file_content, filename, mime_type)
-            parent_folder_id: ID of parent folder
-        
-        Returns:
-            List of upload results (success or error for each file)
-        
-        Example:
-            >>> files = [
-            ...     (photo1_bytes, "photo1.jpg", "image/jpeg"),
-            ...     (photo2_bytes, "photo2.jpg", "image/jpeg"),
-            ... ]
-            >>> results = await drive_service.upload_multiple_files(
-            ...     files=files,
-            ...     parent_folder_id="1a2b3c4d5e"
-            ... )
-        """
-        results = []
-        
-        print(f"📤 Starting batch upload of {len(files)} files...")
-        
-        for idx, (file_content, filename, mime_type) in enumerate(files, 1):
-            try:
-                print(f"   [{idx}/{len(files)}] Uploading {filename}...")
-                
-                file_data = await self.upload_file(
-                    file_content=file_content,
-                    filename=filename,
-                    mime_type=mime_type,
-                    parent_folder_id=parent_folder_id
-                )
-                
-                results.append({
-                    "success": True,
-                    "filename": filename,
-                    "file_data": file_data
-                })
-                
-            except HTTPException as e:
-                print(f"   ❌ Failed to upload {filename}: {e.detail}")
-                results.append({
-                    "success": False,
-                    "filename": filename,
-                    "error": e.detail
-                })
-            except Exception as e:
-                print(f"   ❌ Unexpected error for {filename}: {e}")
-                results.append({
-                    "success": False,
-                    "filename": filename,
-                    "error": str(e)
-                })
-        
-        successful = sum(1 for r in results if r["success"])
-        print(f"✅ Batch upload complete: {successful}/{len(files)} successful")
-        
-        return results
-    
-    async def delete_file(self, file_id: str) -> bool:
-        """
-        Delete a file from Google Drive
-        
-        ✅ NEW: Permanent deletion from Drive
-        
-        Args:
-            file_id: ID of file to delete
-        
-        Returns:
-            True if deleted successfully, False otherwise
-        
-        Note:
-            This permanently deletes the file from Drive.
-            Use with caution!
-        """
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.delete(
-                    f"{self.DRIVE_API_BASE}/files/{file_id}",
-                    headers=self.headers
-                )
-                
-                if response.status_code == 204:
-                    print(f"✅ File deleted: {file_id}")
-                    return True
-                else:
-                    print(f"⚠️ Failed to delete file {file_id}: {response.text}")
-                    return False
-        
-        except Exception as e:
-            print(f"❌ Error deleting file {file_id}: {e}")
-            return False
-    
-    async def get_file_info(self, file_id: str) -> Optional[Dict]:
-        """
-        Get detailed info about a file
-        
-        Args:
-            file_id: ID of file
-        
-        Returns:
-            File info dict or None if not found
-        """
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.DRIVE_API_BASE}/files/{file_id}",
-                    headers=self.headers,
-                    params={
-                        "fields": "id,name,mimeType,size,webViewLink,thumbnailLink,createdTime,modifiedTime"
-                    }
-                )
-                
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    return None
-        
-        except Exception as e:
-            print(f"❌ Error getting file info: {e}")
-            return None
 
 
 # ============================================================================
@@ -688,23 +431,3 @@ def sanitize_folder_name(name: str) -> str:
         name = "untitled"
     
     return name
-
-
-def get_mime_type(filename: str) -> str:
-    """
-    Get MIME type from filename
-    
-    Args:
-        filename: Filename with extension
-    
-    Returns:
-        MIME type string (defaults to 'application/octet-stream' if unknown)
-    
-    Example:
-        >>> get_mime_type("photo.jpg")
-        'image/jpeg'
-        >>> get_mime_type("document.pdf")
-        'application/pdf'
-    """
-    mime_type, _ = mimetypes.guess_type(filename)
-    return mime_type or 'application/octet-stream'
