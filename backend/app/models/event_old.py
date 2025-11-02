@@ -114,7 +114,6 @@ class Event(Base):
             'workspace_id': str(self.workspace_id) if self.workspace_id else None,
             'created_by': str(self.created_by) if self.created_by else None,
             'customer_id': str(self.customer_id),
-            'customer_name': self.customer_name,  # ✅ Added: Dynamic customer name
             'event_name': self.event_name,
             'event_type': self.event_type,
             'event_date': self.event_date.isoformat() if self.event_date else None,
@@ -138,17 +137,3 @@ class Event(Base):
     def post_count(self):
         """Get total number of posts for this event"""
         return len(self.posts) if self.posts else 0
-    
-    @property
-    def customer_name(self):
-        """
-        Get customer name for this event
-        
-        Returns customer's display_name (company_name or full_name or email)
-        This property is automatically available when customer relationship is loaded
-        
-        ✅ Added: 02-11-2025 - Fix for "Onbekende klant" issue
-        """
-        if self.customer:
-            return self.customer.display_name
-        return "Onbekende klant"

@@ -231,13 +231,10 @@ def list_events(
     
     ✅ OAuth Protected: Only returns events from user's workspace
     ✅ Workspace Isolation: User can only see events in their workspace
-    ✅ FIXED: Now includes customer_name via JOIN (02-11-2025)
     """
     
-    # Base query - ONLY workspace's events + JOIN Customer for customer_name
-    query = db.query(Event).join(
-        Customer, Event.customer_id == Customer.customer_id
-    ).filter(
+    # Base query - ONLY workspace's events
+    query = db.query(Event).filter(
         Event.workspace_id == workspace.workspace_id  # ✅ Critical: Filter by workspace
     )
     
@@ -283,14 +280,6 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
-    # ✅ Enrich events with customer_name from relationship
-    for event in events:
-        if event.customer:
-            # Add customer_name to event object dynamically
-            event.customer_name = event.customer.display_name
-        else:
-            event.customer_name = "Onbekende klant"
-    
     # Calculate page number and total pages
     page = (skip // limit) + 1 if limit > 0 else 1
     pages = math.ceil(total / limit) if limit > 0 else 0
@@ -318,11 +307,8 @@ def get_event(
     Get a specific event by ID
     
     ✅ OAuth Protected: User can only access events in their workspace
-    ✅ FIXED: Now includes customer_name via JOIN (02-11-2025)
     """
-    event = db.query(Event).join(
-        Customer, Event.customer_id == Customer.customer_id
-    ).filter(
+    event = db.query(Event).filter(
         Event.event_id == event_id,
         Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
     ).first()
@@ -332,12 +318,6 @@ def get_event(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found in your workspace"
         )
-    
-    # ✅ Add customer_name to event object
-    if event.customer:
-        event.customer_name = event.customer.display_name
-    else:
-        event.customer_name = "Onbekende klant"
     
     return event
 
