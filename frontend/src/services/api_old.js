@@ -1,9 +1,10 @@
 /**
- * API Service
- * File Location: src/services/api.js
- * Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/services/api.js
+ * API Service - UPDATED
+ * File Location: frontend/src/services/api.js
+ * Full Path: C:/Users/DASAP/Documents/social_media_poster/frontend/src/services/api.js
  * 
  * Axios instance with interceptors for token management
+ * ✅ UPDATED: Added stats endpoints for dashboard
  */
 
 import axios from 'axios';
@@ -118,6 +119,10 @@ export const apiEndpoints = {
     create: '/customers',
     update: (id) => `/customers/${id}`,
     delete: (id) => `/customers/${id}`,
+    archive: (id) => `/customers/${id}/archive`,
+    restore: (id) => `/customers/${id}/restore`,
+    summary: '/customers/summary',
+    stats: '/customers/stats/overview', // ✅ NEW
   },
   
   // Events
@@ -128,6 +133,7 @@ export const apiEndpoints = {
     create: '/events',
     update: (id) => `/events/${id}`,
     delete: (id) => `/events/${id}`,
+    stats: '/events/stats/overview', // ✅ NEW (when implemented)
   },
   
   // Photos
@@ -137,6 +143,31 @@ export const apiEndpoints = {
     getByEvent: (eventId) => `/photos/event/${eventId}`,
     upload: (eventId) => `/photos/event/${eventId}`,
     delete: (id) => `/photos/${id}`,
+    stats: '/photos/stats/overview', // ✅ NEW (when implemented)
+  },
+  
+  // Posts (future)
+  posts: {
+    list: '/posts',
+    get: (id) => `/posts/${id}`,
+    create: '/posts',
+    update: (id) => `/posts/${id}`,
+    delete: (id) => `/posts/${id}`,
+    stats: '/posts/stats/overview', // ✅ NEW (when implemented)
+  },
+  
+  // Drive Setup
+  drive: {
+    setup: '/drive/setup',
+    status: '/drive/status',
+    folders: '/drive/folders',
+  },
+  
+  // Workspace (future)
+  workspace: {
+    get: '/workspace',
+    update: '/workspace',
+    stats: '/workspace/stats',
   },
 };
 

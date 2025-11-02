@@ -3,13 +3,12 @@
 SOCIAL MEDIA POSTER - CUSTOMER API ENDPOINTS
 ==========================================
 Bestandslocatie: backend/app/api/customers.py
-Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/customers.py
+Full Path: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/backend/app/api/customers.py
 
 FastAPI routes voor customer management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
-✅ WORKSPACE-BASED: Customers behoren tot workspace (multi-tenant)
-✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
-✅ AUTO FOLDER CREATION: Maakt automatisch Google Drive folder aan per customer
+✅ MULTI-TENANT: Users zien alleen customers in hun workspace
+✅ WORKSPACE: Gebruikt workspace_id voor data isolatie
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,16 +20,7 @@ from ..core.database import get_db
 from ..core.config import settings
 from ..models.customer import Customer
 from ..models.user import User
-from ..models.workspace import Workspace
-from ..schemas.customer import (
-    CustomerCreate,
-    CustomerUpdate,
-    CustomerResponse,
-    CustomerListResponse,
-    CustomerSummary
-)
 from .dependencies import get_current_user
-from ..services.drive_service import DriveService, sanitize_folder_name
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -39,154 +29,96 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 # CREATE
 # ============================================================================
 
-@router.post("/", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
-async def create_customer(
-    customer: CustomerCreate,
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_customer(
+    customer_data: dict,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new customer with automatic Google Drive folder creation
+    Create a new customer in the user's current workspace
     
     ✅ OAuth Protected: Requires valid JWT token
-    ✅ Workspace Isolation: Customer linked to user's workspace
-    ✅ Auto Drive Folder: Creates folder in workspace's customers subfolder
-    
-    Process:
-    1. Verify user has workspace set up
-    2. Check customer email uniqueness in workspace
-    3. Create Google Drive folder in workspace/customers/
-    4. Save customer with Drive folder ID
+    ✅ Workspace Isolation: Customer is linked to user's current workspace
+    ✅ User's Drive: Uses authenticated user's Google Drive
     """
-    
-    # ============================================================================
-    # STEP 1: Verify workspace setup
-    # ============================================================================
-    
+    # Verify user has a current workspace
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No workspace found. Please complete workspace setup first."
+            detail="No workspace selected. Please select a workspace first."
         )
     
-    workspace = db.query(Workspace).filter(
-        Workspace.workspace_id == current_user.current_workspace_id
-    ).first()
-    
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found"
-        )
-    
-    if not workspace.drive_setup_complete:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Drive setup not complete. Please complete Drive setup first."
-        )
-    
-    if not workspace.drive_customers_folder_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Customers folder not found in Drive. Please contact support."
-        )
-    
-    # ============================================================================
-    # STEP 2: Check email uniqueness (within workspace)
-    # ============================================================================
-    
+    # Check if email already exists in this workspace
     existing = db.query(Customer).filter(
-        Customer.email == customer.email,
-        Customer.workspace_id == workspace.workspace_id
+        Customer.email == customer_data.get('email'),
+        Customer.workspace_id == current_user.current_workspace_id
     ).first()
     
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"A customer with email {customer.email} already exists in your workspace"
+            detail=f"A customer with email {customer_data.get('email')} already exists in this workspace"
         )
+
+    # Parse name fields - support both full_name and first_name/last_name
+    first_name = customer_data.get('first_name', '')
+    last_name = customer_data.get('last_name', '')
     
-    # ============================================================================
-    # STEP 3: Create Google Drive folder
-    # ============================================================================
+    # If full_name is provided, split it
+    if customer_data.get('full_name') and not (first_name or last_name):
+        full_name = customer_data.get('full_name', '').strip()
+        name_parts = full_name.split(' ', 1)
+        first_name = name_parts[0] if len(name_parts) > 0 else ''
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+    # Parse address - support both single address field and separate fields
+    street = customer_data.get('street', '')
+    house_number = customer_data.get('house_number', '')
+    house_number_addition = customer_data.get('house_number_addition', '')
+    postal_code = customer_data.get('postal_code', '')
+    city = customer_data.get('city', '')
+    country = customer_data.get('country', '')
     
-    # Check if user has valid access token
-    if not current_user.google_access_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google authentication required. Please re-authenticate."
-        )
-    
-    # Generate folder name
-    if customer.company_name:
-        folder_name = sanitize_folder_name(customer.company_name)
-    elif customer.first_name or customer.last_name:
-        name_parts = [customer.first_name, customer.last_name]
-        folder_name = sanitize_folder_name(" ".join([n for n in name_parts if n]))
-    else:
-        # Use email prefix as fallback
-        folder_name = sanitize_folder_name(customer.email.split('@')[0])
-    
-    # Create Drive service with user's OAuth token
-    drive_service = DriveService(current_user.google_access_token)
-    
-    try:
-        # Create customer folder in workspace's customers subfolder
-        folder_info = await drive_service.create_folder(
-            folder_name=folder_name,
-            parent_id=workspace.drive_customers_folder_id
-        )
-        
-        customer_drive_folder_id = folder_info['id']
-        
-        print(f"✅ Created Drive folder for customer: {folder_name}")
-        print(f"   Folder ID: {customer_drive_folder_id}")
-        print(f"   Link: {folder_info.get('webViewLink', 'N/A')}")
-        
-    except HTTPException as e:
-        # Drive API error - still create customer but log error
-        print(f"⚠️ Failed to create Drive folder: {e.detail}")
-        customer_drive_folder_id = None
-        # Don't fail customer creation if Drive fails
-        # User can manually create folder later
-    except Exception as e:
-        print(f"⚠️ Unexpected error creating Drive folder: {str(e)}")
-        customer_drive_folder_id = None
-    
-    # ============================================================================
-    # STEP 4: Create customer in database
-    # ============================================================================
-    
+    # If address is provided as single string, just put it in street for now
+    if customer_data.get('address') and not street:
+        street = customer_data.get('address', '')
+
+    # Create new customer in database
     db_customer = Customer(
-        **customer.model_dump(),
-        workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-        created_by=current_user.user_id,      # ✅ Track who created it
-        google_drive_folder_id=customer_drive_folder_id  # ✅ Store Drive folder ID
+        workspace_id=current_user.current_workspace_id,
+        created_by=current_user.user_id,
+        email=customer_data.get('email'),
+        first_name=first_name,
+        last_name=last_name,
+        company_name=customer_data.get('company_name', ''),
+        phone=customer_data.get('phone', ''),
+        street=street,
+        house_number=house_number,
+        house_number_addition=house_number_addition,
+        postal_code=postal_code,
+        city=city,
+        country=country,
+        notes=customer_data.get('notes', ''),
+        status=customer_data.get('status', 'active')
     )
     
     db.add(db_customer)
     db.commit()
     db.refresh(db_customer)
     
-    # ============================================================================
-    # STEP 5: Log success
-    # ============================================================================
-    
-    print(f"✅ Customer created successfully!")
-    print(f"   User: {current_user.email}")
-    print(f"   Workspace: {workspace.name}")
-    print(f"   Customer: {db_customer.company_name or db_customer.email}")
+    print(f"✅ Customer created in workspace: {current_user.current_workspace_id}")
+    print(f"   Customer: {db_customer.company_name or db_customer.full_name}")
     print(f"   Customer ID: {db_customer.customer_id}")
-    print(f"   Drive Folder: {'✅ Created' if customer_drive_folder_id else '⚠️ Not created'}")
-    
-    return db_customer
+
+    return db_customer.to_dict()
 
 
 # ============================================================================
 # READ - LIST
 # ============================================================================
 
-@router.get("/", response_model=CustomerListResponse)
+@router.get("/")
 def list_customers(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
@@ -198,15 +130,14 @@ def list_customers(
     """
     Get list of customers with pagination and filters
     
-    ✅ OAuth Protected: Only returns customers in user's workspace
-    ✅ Workspace Isolation: User only sees their workspace's customers
+    ✅ OAuth Protected: Only returns customers in user's current workspace
+    ✅ Multi-tenant: Complete workspace isolation
     """
-    
     # Verify workspace
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     # Base query - ONLY workspace's customers
@@ -234,19 +165,19 @@ def list_customers(
     offset = (page - 1) * page_size
     customers = query.offset(offset).limit(page_size).all()
 
-    return CustomerListResponse(
-        customers=customers,
-        total=total,
-        page=page,
-        page_size=page_size
-    )
+    return {
+        "customers": [c.to_dict() for c in customers],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
 
 
 # ============================================================================
 # READ - SUMMARY
 # ============================================================================
 
-@router.get("/summary", response_model=List[CustomerSummary])
+@router.get("/summary")
 def get_customers_summary(
     status: str = Query("active", description="Filter by status"),
     current_user: User = Depends(get_current_user),
@@ -255,14 +186,10 @@ def get_customers_summary(
     """
     Get lightweight customer list for dropdowns
     
-    ✅ OAuth Protected: Only returns workspace's customers
+    ✅ OAuth Protected: Only returns customers from current workspace
     """
-    
     if not current_user.current_workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
-        )
+        return []
     
     customers = db.query(Customer).filter(
         Customer.workspace_id == current_user.current_workspace_id,
@@ -270,12 +197,12 @@ def get_customers_summary(
     ).all()
 
     return [
-        CustomerSummary(
-            customer_id=c.customer_id,
-            email=c.email,
-            company_name=c.company_name,
-            full_name=c.full_name
-        )
+        {
+            "customer_id": str(c.customer_id),
+            "email": c.email,
+            "company_name": c.company_name,
+            "full_name": c.full_name
+        }
         for c in customers
     ]
 
@@ -284,7 +211,7 @@ def get_customers_summary(
 # READ - SINGLE
 # ============================================================================
 
-@router.get("/{customer_id}", response_model=CustomerResponse)
+@router.get("/{customer_id}")
 def get_customer(
     customer_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -293,14 +220,13 @@ def get_customer(
     """
     Get a specific customer by ID
     
-    ✅ OAuth Protected: User can only access workspace's customers
-    ✅ Authorization: Returns 404 if customer not in workspace
+    ✅ OAuth Protected: User can only access customers in their workspace
+    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
     """
-    
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     customer = db.query(Customer).filter(
@@ -311,34 +237,33 @@ def get_customer(
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found or not in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
-    return customer
+    return customer.to_dict()
 
 
 # ============================================================================
 # UPDATE
 # ============================================================================
 
-@router.put("/{customer_id}", response_model=CustomerResponse)
+@router.put("/{customer_id}")
 def update_customer(
     customer_id: UUID,
-    customer_update: CustomerUpdate,
+    customer_update: dict,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Update a customer
     
-    ✅ OAuth Protected: User can only update workspace's customers
-    ✅ Authorization: Returns 404 if customer not in workspace
+    ✅ OAuth Protected: User can only update customers in their workspace
+    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
     """
-    
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     # Get customer with workspace verification
@@ -350,31 +275,38 @@ def update_customer(
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found or not in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     # Check if email is being changed and if new email already exists
-    if customer_update.email and customer_update.email != db_customer.email:
+    new_email = customer_update.get('email')
+    if new_email and new_email != db_customer.email:
         existing = db.query(Customer).filter(
-            Customer.email == customer_update.email,
+            Customer.email == new_email,
             Customer.workspace_id == current_user.current_workspace_id
         ).first()
         
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"A customer with email {customer_update.email} already exists in your workspace"
+                detail=f"A customer with email {new_email} already exists in this workspace"
             )
 
     # Update fields
-    update_data = customer_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_customer, field, value)
+    allowed_fields = [
+        'email', 'first_name', 'last_name', 'company_name', 'phone',
+        'street', 'house_number', 'house_number_addition', 'postal_code',
+        'city', 'country', 'notes', 'status'
+    ]
+    
+    for field in allowed_fields:
+        if field in customer_update:
+            setattr(db_customer, field, customer_update[field])
 
     db.commit()
     db.refresh(db_customer)
 
-    return db_customer
+    return db_customer.to_dict()
 
 
 # ============================================================================
@@ -391,16 +323,13 @@ def delete_customer(
     """
     Delete a customer
     
-    ✅ OAuth Protected: User can only delete workspace's customers
-    ✅ Authorization: Returns 404 if customer not in workspace
-    
-    Note: Does NOT delete Google Drive folder (for safety)
+    ✅ OAuth Protected: User can only delete customers in their workspace
+    ✅ Authorization: Returns 404 if customer doesn't belong to workspace
     """
-    
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     # Get customer with workspace verification
@@ -412,7 +341,7 @@ def delete_customer(
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found or not in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     if hard_delete:
@@ -428,7 +357,7 @@ def delete_customer(
 # ARCHIVE
 # ============================================================================
 
-@router.post("/{customer_id}/archive", response_model=CustomerResponse)
+@router.post("/{customer_id}/archive")
 def archive_customer(
     customer_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -437,13 +366,12 @@ def archive_customer(
     """
     Archive a customer
     
-    ✅ OAuth Protected: User can only archive workspace's customers
+    ✅ OAuth Protected: User can only archive customers in their workspace
     """
-    
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     db_customer = db.query(Customer).filter(
@@ -454,21 +382,21 @@ def archive_customer(
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found or not in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     db_customer.status = "archived"
     db.commit()
     db.refresh(db_customer)
 
-    return db_customer
+    return db_customer.to_dict()
 
 
 # ============================================================================
 # RESTORE
 # ============================================================================
 
-@router.post("/{customer_id}/restore", response_model=CustomerResponse)
+@router.post("/{customer_id}/restore")
 def restore_customer(
     customer_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -477,13 +405,12 @@ def restore_customer(
     """
     Restore an archived or deleted customer
     
-    ✅ OAuth Protected: User can only restore workspace's customers
+    ✅ OAuth Protected: User can only restore customers in their workspace
     """
-    
     if not current_user.current_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
+            detail="No workspace selected"
         )
     
     db_customer = db.query(Customer).filter(
@@ -494,14 +421,14 @@ def restore_customer(
     if not db_customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found or not in your workspace"
+            detail="Customer not found or you don't have access to it"
         )
 
     db_customer.status = "active"
     db.commit()
     db.refresh(db_customer)
 
-    return db_customer
+    return db_customer.to_dict()
 
 
 # ============================================================================
@@ -524,12 +451,15 @@ def get_customer_stats(
         - archived: Archived customers
         - deleted: Deleted customers
     """
-    
     if not current_user.current_workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active workspace"
-        )
+        return {
+            "total": 0,
+            "active": 0,
+            "archived": 0,
+            "deleted": 0,
+            "workspace_id": None,
+            "user_email": current_user.email
+        }
     
     base_query = db.query(Customer).filter(
         Customer.workspace_id == current_user.current_workspace_id
@@ -540,17 +470,11 @@ def get_customer_stats(
     archived = base_query.filter(Customer.status == "archived").count()
     deleted = base_query.filter(Customer.status == "deleted").count()
     
-    # Count customers with Drive folders
-    with_drive_folder = base_query.filter(
-        Customer.google_drive_folder_id.isnot(None)
-    ).count()
-    
     return {
         "total": total,
         "active": active,
         "archived": archived,
         "deleted": deleted,
-        "with_drive_folder": with_drive_folder,
         "workspace_id": str(current_user.current_workspace_id),
         "user_email": current_user.email
     }

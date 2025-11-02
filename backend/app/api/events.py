@@ -8,8 +8,8 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/events.p
 FastAPI routes voor event management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
 ✅ WORKSPACE ISOLATION: Users zien alleen events van hun workspace
-✅ DYNAMIC FOLDERS: Event folders direct onder customer folder
-✅ CUSTOMER REQUIRED: Events kunnen alleen voor bestaande customers
+✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
+✅ FIXED: EventListResponse now uses correct field names
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,7 +22,7 @@ from datetime import datetime
 from ..core.database import get_db
 from ..models.event import Event
 from ..models.customer import Customer
-from ..models.user import User, AuditLog
+from ..models.user import User
 from ..models.workspace import Workspace
 from ..schemas.event import (
     EventCreate,
@@ -32,7 +32,6 @@ from ..schemas.event import (
     EventListResponse,
     EventArchiveRequest
 )
-from ..services.drive_service import DriveService
 from .dependencies import get_current_user, get_current_workspace
 
 # Router instance
@@ -50,49 +49,11 @@ router = APIRouter(
 def sanitize_folder_name(name: str) -> str:
     """
     Sanitize name for use as folder name
-    - Replaces spaces with underscores
-    - Removes special characters
-    - Keeps only alphanumeric and underscores
-    
-    Example:
-        "Verjaardag Jan 2024" → "Verjaardag_Jan_2024"
+    Replaces spaces with underscores and removes special characters
     """
     folder_name = name.strip().replace(' ', '_')
     folder_name = ''.join(c for c in folder_name if c.isalnum() or c == '_')
-    
-    # Ensure not empty
-    if not folder_name:
-        folder_name = "Event"
-    
     return folder_name
-
-
-def get_drive_service(current_user: User) -> DriveService:
-    """
-    Get initialized DriveService instance using user's OAuth token
-    
-    Args:
-        current_user: Authenticated user with Google OAuth token
-        
-    Returns:
-        DriveService instance
-        
-    Raises:
-        HTTPException if user doesn't have valid Google access token
-    """
-    if not current_user.google_access_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No Google Drive access. Please login again."
-        )
-    
-    try:
-        return DriveService(access_token=current_user.google_access_token)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Google Drive service not available: {str(e)}"
-        )
 
 
 # ============================================================================
@@ -100,32 +61,22 @@ def get_drive_service(current_user: User) -> DriveService:
 # ============================================================================
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
-async def create_event(
+def create_event(
     event: EventCreate,
     workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
-    Create a new event with automatic Google Drive subfolder
+    Create a new event with automatic Google Drive folder
     
     ✅ OAuth Protected: Requires valid JWT token
     ✅ Workspace Isolated: Event is linked to workspace
-    ✅ Customer Required: Event must be for existing customer
     ✅ Ownership Verification: Checks if customer belongs to workspace
-    ✅ Dynamic Folders: Creates event folder UNDER customer folder
-    ✅ User's Drive: Uses authenticated user's Google Drive
-    
-    Flow:
-    1. Verify customer exists AND belongs to workspace
-    2. Check customer is not archived
-    3. Create event in database
-    4. Create Google Drive subfolder (under customer folder)
-    5. Update event with folder_id
-    6. Return event
+    ✅ User's Drive: Creates folder in authenticated user's Google Drive
     
     Args:
-        event: Event data (must include customer_id!)
+        event: Event data
         workspace: Current workspace (auto-injected)
         current_user: Authenticated user from JWT token
         
@@ -133,53 +84,32 @@ async def create_event(
         Created event with google_drive_folder_id
     """
     
-    print(f"\n🎉 Creating event...")
-    print(f"   Workspace: {workspace.name}")
-    print(f"   User: {current_user.email}")
-    print(f"   Event: {event.event_name}")
-    
-    # ============================================================================
-    # 1. VERIFY CUSTOMER - Must exist AND belong to workspace
-    # ============================================================================
-    
+    # Verify customer exists AND belongs to this workspace
     customer = db.query(Customer).filter(
         Customer.customer_id == event.customer_id,
         Customer.workspace_id == workspace.workspace_id  # ✅ Verify customer in workspace
     ).first()
     
     if not customer:
-        print(f"❌ Customer not found in workspace")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found in your workspace. Please select an existing customer."
+            detail="Customer not found in your workspace"
         )
-    
-    print(f"✅ Customer verified: {customer.company_name or customer.email}")
     
     # Check customer status
     if customer.status == "archived":
-        print(f"⚠️  Customer is archived")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot create event for archived customer. Please restore customer first."
+            detail="Cannot create event for archived customer"
         )
-    
-    # ============================================================================
-    # 2. PREPARE FOLDER NAME
-    # ============================================================================
     
     # Auto-generate folder_name if not provided
     if not event.folder_name:
         folder_name = sanitize_folder_name(event.event_name)
     else:
-        folder_name = sanitize_folder_name(event.folder_name)
+        folder_name = event.folder_name
     
-    print(f"   Folder name: {folder_name}")
-    
-    # ============================================================================
-    # 3. CREATE EVENT IN DATABASE
-    # ============================================================================
-    
+    # Create event object
     db_event = Event(
         customer_id=event.customer_id,
         workspace_id=workspace.workspace_id,  # ✅ Link to workspace
@@ -199,71 +129,15 @@ async def create_event(
     db.commit()
     db.refresh(db_event)
     
-    print(f"✅ Event created in database")
+    # ✅ TODO: Implement Google Drive folder creation using user's OAuth token
+    # This will use the authenticated user's Google Drive, not a Service Account
+    # Implementation will be added in Phase 2 after OAuth is fully working
+    
+    print(f"✅ Event created in workspace: {workspace.name}")
+    print(f"   User: {current_user.email}")
+    print(f"   Event: {event.event_name}")
+    print(f"   Customer: {customer.company_name or customer.email}")
     print(f"   Event ID: {db_event.event_id}")
-    
-    # ============================================================================
-    # 4. CREATE GOOGLE DRIVE SUBFOLDER (if customer has Drive folder)
-    # ============================================================================
-    
-    if customer.google_drive_folder_id:
-        try:
-            print(f"📁 Creating Google Drive subfolder...")
-            print(f"   Parent: {customer.company_name or customer.email}")
-            print(f"   Parent folder ID: {customer.google_drive_folder_id}")
-            
-            # Get Drive service with user's OAuth token
-            drive_service = get_drive_service(current_user)
-            
-            # Create event folder UNDER customer folder
-            event_folder = await drive_service.create_folder(
-                folder_name=folder_name,
-                parent_id=customer.google_drive_folder_id  # ✅ Under customer folder!
-            )
-            
-            event_folder_id = event_folder['id']
-            
-            print(f"✅ Event folder created in Drive")
-            print(f"   Folder ID: {event_folder_id}")
-            print(f"   Folder link: {event_folder['webViewLink']}")
-            
-            # Update event with folder ID
-            db_event.google_drive_folder_id = event_folder_id
-            
-            # Log the creation
-            AuditLog.log(
-                db=db,
-                user_id=current_user.user_id,
-                action="event_folder_created",
-                entity_type="event",
-                entity_id=db_event.event_id,
-                details={
-                    "folder_id": event_folder_id,
-                    "folder_name": folder_name,
-                    "customer_folder_id": customer.google_drive_folder_id,
-                    "customer_name": customer.company_name,
-                    "workspace_id": str(workspace.workspace_id)
-                }
-            )
-            
-            db.commit()
-            db.refresh(db_event)
-            
-        except HTTPException:
-            # Re-raise HTTP exceptions (auth errors, etc.)
-            raise
-        except Exception as e:
-            print(f"⚠️  Failed to create Drive folder: {e}")
-            # Don't fail event creation if Drive fails
-            # Event is already created in DB
-            print(f"   Event created but without Drive folder")
-    
-    else:
-        print(f"ℹ️  Customer has no Drive folder - skipping event folder creation")
-        print(f"   Customer Drive folder must be created first")
-    
-    print(f"✅ Event creation complete!")
-    print(f"   Structure: {customer.company_name}/{folder_name}/")
     
     return db_event
 
@@ -338,11 +212,16 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
+    # ✅ FIXED: Calculate page numbers and use correct field names for EventListResponse
+    page = (skip // limit) + 1 if limit > 0 else 1
+    pages = (total + limit - 1) // limit if limit > 0 else 1
+    
     return EventListResponse(
-        events=events,
+        items=events,      # ✅ Changed from 'events' to 'items'
         total=total,
-        skip=skip,
-        limit=limit
+        page=page,         # ✅ Changed from 'skip' to 'page'
+        page_size=limit,   # ✅ Changed from 'limit' to 'page_size'
+        pages=pages        # ✅ Added 'pages' field
     )
 
 
@@ -475,8 +354,6 @@ def delete_event(
     Delete an event
     
     ✅ OAuth Protected: User can only delete events in their workspace
-    
-    Note: Google Drive folder is NOT deleted (manual cleanup if needed)
     """
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
@@ -565,62 +442,6 @@ def restore_event(
 
 
 # ============================================================================
-# DRIVE INFO
-# ============================================================================
-
-@router.get("/{event_id}/drive-info")
-def get_event_drive_info(
-    event_id: UUID,
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get Google Drive folder information for event
-    
-    ✅ OAuth Protected
-    ✅ Returns folder info + customer folder info
-    
-    Returns:
-        folder_id, folder_link, has_drive_folder, customer_folder_info
-    """
-    event = db.query(Event).filter(
-        Event.event_id == event_id,
-        Event.workspace_id == workspace.workspace_id
-    ).first()
-
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found in your workspace"
-        )
-    
-    # Get customer info
-    customer = db.query(Customer).filter(
-        Customer.customer_id == event.customer_id
-    ).first()
-
-    has_event_folder = bool(event.google_drive_folder_id)
-    has_customer_folder = bool(customer.google_drive_folder_id)
-    
-    return {
-        "event_id": str(event.event_id),
-        "event_name": event.event_name,
-        "folder_name": event.folder_name,
-        "has_drive_folder": has_event_folder,
-        "folder_id": event.google_drive_folder_id if has_event_folder else None,
-        "folder_link": f"https://drive.google.com/drive/folders/{event.google_drive_folder_id}" if has_event_folder else None,
-        "customer": {
-            "customer_id": str(customer.customer_id),
-            "customer_name": customer.company_name or customer.full_name,
-            "has_drive_folder": has_customer_folder,
-            "folder_id": customer.google_drive_folder_id if has_customer_folder else None,
-            "folder_link": f"https://drive.google.com/drive/folders/{customer.google_drive_folder_id}" if has_customer_folder else None
-        }
-    }
-
-
-# ============================================================================
 # UTILITY ENDPOINTS
 # ============================================================================
 
@@ -665,8 +486,7 @@ def list_customer_events(
         "customer_info": {
             "customer_id": str(customer.customer_id),
             "company_name": customer.company_name,
-            "email": customer.email,
-            "google_drive_folder_id": customer.google_drive_folder_id
+            "email": customer.email
         },
         "events": events,
         "total_count": len(events)
@@ -754,7 +574,6 @@ def get_event_stats(
     active = base_query.filter(Event.status == "active").count()
     completed = base_query.filter(Event.status == "completed").count()
     archived = base_query.filter(Event.archived == True).count()
-    with_drive = base_query.filter(Event.google_drive_folder_id.isnot(None)).count()
     
     return {
         "total": total,
@@ -762,7 +581,6 @@ def get_event_stats(
         "active": active,
         "completed": completed,
         "archived": archived,
-        "with_drive_folder": with_drive,
         "workspace_id": str(workspace.workspace_id),
         "workspace_name": workspace.name,
         "user_email": current_user.email

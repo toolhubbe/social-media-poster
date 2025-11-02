@@ -4,10 +4,9 @@
  * Bestandslocatie: frontend/src/pages/customers/CustomerCreate.jsx
  * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerCreate.jsx
  * 
- * Formulier voor het aanmaken van nieuwe klanten
- * ✅ FIXED: Matched form fields to backend schema
- * ✅ NEW: Complete address fields (street, house_number, postal_code, city, country)
- * ✅ NEW: Notes field for general customer information
+ * ✅ UPDATED: Nu met correcte velden die matchen met Customer model:
+ * - first_name + last_name i.p.v. full_name
+ * - Aparte adresvelden (street, house_number, postal_code, city, country)
  */
 
 import React, { useState } from 'react';
@@ -22,23 +21,19 @@ const CustomerCreate = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
-    // Basic info
     first_name: '',
     last_name: '',
     company_name: '',
     email: '',
     phone: '',
-    
-    // Address info - ✨ NEW
     street: '',
     house_number: '',
     house_number_addition: '',
     postal_code: '',
     city: '',
     country: 'Nederland',
-    
-    // Additional info - ✨ NEW
-    notes: ''
+    notes: '',
+    status: 'active'
   });
 
   const handleChange = (e) => {
@@ -52,7 +47,6 @@ const CustomerCreate = () => {
   };
 
   const validateForm = () => {
-    // Email is required
     if (!formData.email.trim()) {
       setError('Email is verplicht');
       return false;
@@ -61,22 +55,10 @@ const CustomerCreate = () => {
       setError('Voer een geldig email adres in');
       return false;
     }
-    
-    // At least one name field is required
     if (!formData.first_name.trim() && !formData.last_name.trim() && !formData.company_name.trim()) {
-      setError('Vul minimaal een voornaam, achternaam OF bedrijfsnaam in');
+      setError('Vul minimaal een naam OF bedrijfsnaam in');
       return false;
     }
-    
-    // If address is partially filled, validate completeness
-    const hasAnyAddress = formData.street || formData.house_number || formData.postal_code || formData.city;
-    if (hasAnyAddress) {
-      if (!formData.street || !formData.house_number || !formData.postal_code || !formData.city) {
-        setError('Als je een adres invult, zijn straat, huisnummer, postcode en plaats verplicht');
-        return false;
-      }
-    }
-    
     return true;
   };
 
@@ -91,27 +73,14 @@ const CustomerCreate = () => {
     setError(null);
 
     try {
-      // Prepare data - remove empty strings to send null instead
-      const dataToSend = {};
-      Object.keys(formData).forEach(key => {
-        const value = formData[key];
-        if (value && value.trim() !== '') {
-          dataToSend[key] = value.trim();
-        } else if (key === 'country') {
-          // Always include country with default
-          dataToSend[key] = 'Nederland';
-        }
-      });
-
-      console.log('Sending customer data:', dataToSend);
-      const response = await api.post('/customers/', dataToSend);
+      const response = await api.post('/customers/', formData);
       const customer = response.data;
       
-      console.log('✅ Customer created successfully:', customer);
+      console.log('Customer created successfully:', customer);
 
       // Check if we should redirect back to event creation
       if (returnTo) {
-        const displayName = customer.company_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+        const displayName = customer.company_name || `${customer.first_name} ${customer.last_name}`.trim();
         navigate(`${returnTo}?customerId=${customer.customer_id}&customerName=${encodeURIComponent(displayName)}`);
       } else {
         // Show success and redirect to customer list
@@ -120,8 +89,6 @@ const CustomerCreate = () => {
       }
     } catch (err) {
       console.error('Failed to create customer:', err);
-      console.error('Error response:', err.response?.data);
-      
       const errorMessage = err.response?.data?.detail || 
                           err.response?.data?.message ||
                           'Er is een fout opgetreden bij het aanmaken van de klant';
@@ -164,9 +131,9 @@ const CustomerCreate = () => {
             </div>
           )}
 
-          {/* Section 1: Basis Informatie */}
+          {/* Section: Basis Informatie */}
           <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>📝 Basis Informatie</h3>
+            <h3 style={styles.sectionTitle}>Basis Informatie</h3>
             
             <div style={styles.formRow}>
               <div style={styles.formGroup}>
@@ -179,7 +146,7 @@ const CustomerCreate = () => {
                   name="first_name"
                   value={formData.first_name}
                   onChange={handleChange}
-                  placeholder="Bijv: Jan"
+                  placeholder="Jan"
                   style={styles.input}
                   disabled={loading}
                 />
@@ -195,7 +162,7 @@ const CustomerCreate = () => {
                   name="last_name"
                   value={formData.last_name}
                   onChange={handleChange}
-                  placeholder="Bijv: Jansen"
+                  placeholder="Jansen"
                   style={styles.input}
                   disabled={loading}
                 />
@@ -219,13 +186,13 @@ const CustomerCreate = () => {
             </div>
 
             <div style={styles.helperText}>
-              💡 Vul minimaal één van de naamvelden in
+              💡 Vul minimaal een naam OF bedrijfsnaam in
             </div>
           </div>
 
-          {/* Section 2: Contact Informatie */}
+          {/* Section: Contact Informatie */}
           <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>📞 Contact Informatie</h3>
+            <h3 style={styles.sectionTitle}>Contact Informatie</h3>
             
             <div style={styles.formRow}>
               <div style={styles.formGroup}>
@@ -263,14 +230,14 @@ const CustomerCreate = () => {
             </div>
           </div>
 
-          {/* Section 3: Adres Informatie - ✨ NEW */}
+          {/* Section: Adres Informatie */}
           <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>🏠 Adres Informatie</h3>
+            <h3 style={styles.sectionTitle}>Adres Informatie</h3>
             
             <div style={styles.formRow}>
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '2'}}>
+              <div style={{...styles.formGroup, flex: 2}}>
                 <label style={styles.label} htmlFor="street">
-                  Straat
+                  Straatnaam
                 </label>
                 <input
                   id="street"
@@ -278,13 +245,13 @@ const CustomerCreate = () => {
                   name="street"
                   value={formData.street}
                   onChange={handleChange}
-                  placeholder="Bijv: Kerkstraat"
+                  placeholder="Hoofdstraat"
                   style={styles.input}
                   disabled={loading}
                 />
               </div>
 
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '1'}}>
+              <div style={{...styles.formGroup, flex: 1}}>
                 <label style={styles.label} htmlFor="house_number">
                   Huisnummer
                 </label>
@@ -300,9 +267,9 @@ const CustomerCreate = () => {
                 />
               </div>
 
-              <div style={styles.formGroup} style={{...styles.formGroup, flex: '0.5'}}>
+              <div style={{...styles.formGroup, flex: 1}}>
                 <label style={styles.label} htmlFor="house_number_addition">
-                  Toev.
+                  Toevoeging
                 </label>
                 <input
                   id="house_number_addition"
@@ -336,7 +303,7 @@ const CustomerCreate = () => {
 
               <div style={styles.formGroup}>
                 <label style={styles.label} htmlFor="city">
-                  Plaats/Gemeente
+                  Plaats
                 </label>
                 <input
                   id="city"
@@ -344,38 +311,52 @@ const CustomerCreate = () => {
                   name="city"
                   value={formData.city}
                   onChange={handleChange}
-                  placeholder="Bijv: Amsterdam"
+                  placeholder="Amsterdam"
+                  style={styles.input}
+                  disabled={loading}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label} htmlFor="country">
+                  Land
+                </label>
+                <input
+                  id="country"
+                  type="text"
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  placeholder="Nederland"
                   style={styles.input}
                   disabled={loading}
                 />
               </div>
             </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label} htmlFor="country">
-                Land
-              </label>
-              <input
-                id="country"
-                type="text"
-                name="country"
-                value={formData.country}
-                onChange={handleChange}
-                placeholder="Nederland"
-                style={styles.input}
-                disabled={loading}
-              />
-            </div>
-
-            <div style={styles.helperText}>
-              💡 Als je een adres invult, zijn straat, huisnummer, postcode en plaats verplicht
-            </div>
           </div>
 
-          {/* Section 4: Extra Informatie - ✨ NEW */}
+          {/* Section: Extra Informatie */}
           <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>📋 Extra Informatie</h3>
+            <h3 style={styles.sectionTitle}>Extra Informatie</h3>
             
+            <div style={styles.formGroup}>
+              <label style={styles.label} htmlFor="status">
+                Status
+              </label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                style={styles.input}
+                disabled={loading}
+              >
+                <option value="active">Actief</option>
+                <option value="inactive">Inactief</option>
+                <option value="archived">Gearchiveerd</option>
+              </select>
+            </div>
+
             <div style={styles.formGroup}>
               <label style={styles.label} htmlFor="notes">
                 Notities
@@ -385,15 +366,11 @@ const CustomerCreate = () => {
                 name="notes"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Algemene notities over deze klant... (bijv. voorkeuren, afspraken, bijzonderheden)"
+                placeholder="Extra opmerkingen over deze klant..."
                 rows="4"
                 style={{...styles.input, ...styles.textarea}}
                 disabled={loading}
               />
-            </div>
-
-            <div style={styles.helperText}>
-              💡 Gebruik dit veld voor algemene informatie over de klant
             </div>
           </div>
 
@@ -495,7 +472,7 @@ const styles = {
     borderBottom: '2px solid #e0e0e0',
   },
   sectionTitle: {
-    margin: '0 0 1.5rem 0',
+    margin: '0 0 1rem 0',
     fontSize: '1.25rem',
     fontWeight: '600',
     color: '#333',
@@ -506,7 +483,7 @@ const styles = {
     marginBottom: '1rem',
   },
   formGroup: {
-    flex: '1',
+    flex: 1,
     marginBottom: '1rem',
   },
   label: {
@@ -532,13 +509,11 @@ const styles = {
   textarea: {
     resize: 'vertical',
     minHeight: '100px',
-    lineHeight: '1.5',
   },
   helperText: {
     fontSize: '0.85rem',
     color: '#666',
     marginTop: '0.5rem',
-    fontStyle: 'italic',
   },
   actions: {
     display: 'flex',
