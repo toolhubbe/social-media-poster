@@ -111,9 +111,10 @@ class EventUpdate(BaseModel):
 
 class EventResponse(EventBase):
     """Schema voor het returnen van event data
-    ✅ UPDATED: Added workspace_id and created_by fields"""
+    ✅ UPDATED: Added workspace_id, created_by and customer_name fields"""
     event_id: UUID
     customer_id: UUID
+    customer_name: Optional[str] = None  # ✅ NEW: Customer display name (from relationship)
     workspace_id: Optional[UUID] = None  # ✅ NEW
     created_by: Optional[UUID] = None  # ✅ FIXED: was created_by_user_id, now matches model
     google_drive_folder_id: Optional[str] = None
@@ -127,6 +128,7 @@ class EventResponse(EventBase):
             "example": {
                 "event_id": "123e4567-e89b-12d3-a456-426614174000",
                 "customer_id": "987e6543-e21b-12d3-a456-426614174000",
+                "customer_name": "Acme Corporation",  # ✅ NEW
                 "event_name": "Summer Festival 2025",
                 "event_type": "corporate",
                 "event_date": "2025-07-15T14:00:00",
@@ -147,6 +149,7 @@ class EventSummary(BaseModel):
     """Lightweight schema voor event lijsten"""
     event_id: UUID
     customer_id: UUID
+    customer_name: Optional[str] = None  # ✅ NEW: Customer display name
     event_name: str
     event_type: Optional[str] = None
     event_date: Optional[datetime] = None

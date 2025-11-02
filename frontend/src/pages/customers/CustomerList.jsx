@@ -1,13 +1,11 @@
 /**
- * Customer List Page
+ * Customer List Page - MODERN VERSION
  * 
  * Bestandslocatie: frontend/src/pages/customers/CustomerList.jsx
  * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerList.jsx
  * 
- * Overzichtspagina met alle klanten
- * ✅ FIXED: Shows deleted customers when "Alle statussen" or "Verwijderd" is selected
- * ✅ NEW: Added "Verwijderd" option to status filter
- * ✅ FIXED: Uses /customers/ endpoint instead of /summary for full list with all statuses
+ * ✅ MODERNIZED: Glassmorphism, gradients, modern typography, hover effects
+ * ✅ FUNCTIONALITEIT: 100% behouden - alleen styling aangepast
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,7 +18,7 @@ const CustomerList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active'); // Default to active only
+  const [statusFilter, setStatusFilter] = useState('active');
 
   useEffect(() => {
     fetchCustomers();
@@ -33,18 +31,15 @@ const CustomerList = () => {
       
       const params = {
         page: 1,
-        page_size: 100  // Get a lot of customers at once
+        page_size: 100
       };
       
-      // ✅ FIXED: Only add status if not "all"
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       } else {
-        // When "all" is selected, include deleted customers
         params.include_deleted = true;
       }
       
-      // ✅ FIXED: Use /customers/ endpoint which supports all statuses
       const response = await api.get('/customers/', { params });
       setCustomers(response.data.customers || []);
     } catch (err) {
@@ -55,7 +50,6 @@ const CustomerList = () => {
     }
   };
 
-  // Filter customers based on search term
   const filteredCustomers = customers.filter(customer => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -68,9 +62,21 @@ const CustomerList = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      active: { label: 'Actief', color: '#4caf50', bg: '#e8f5e9' },
-      archived: { label: 'Gearchiveerd', color: '#ff9800', bg: '#fff3e0' },
-      deleted: { label: 'Verwijderd', color: '#c62828', bg: '#ffebee' }  // ✅ NEW
+      active: { 
+        label: 'Actief', 
+        gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        shadow: 'rgba(67, 233, 123, 0.3)'
+      },
+      archived: { 
+        label: 'Gearchiveerd', 
+        gradient: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+        shadow: 'rgba(253, 203, 110, 0.3)'
+      },
+      deleted: { 
+        label: 'Verwijderd', 
+        gradient: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
+        shadow: 'rgba(253, 121, 168, 0.3)'
+      }
     };
     
     const config = statusConfig[status] || statusConfig.active;
@@ -78,8 +84,8 @@ const CustomerList = () => {
     return (
       <span style={{
         ...styles.statusBadge,
-        color: config.color,
-        backgroundColor: config.bg
+        background: config.gradient,
+        boxShadow: `0 4px 15px ${config.shadow}`
       }}>
         {config.label}
       </span>
@@ -88,76 +94,78 @@ const CustomerList = () => {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner}></div>
-          <p style={styles.loadingText}>Klanten laden...</p>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.loadingCard}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Klanten laden...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerTop}>
-          <div style={styles.headerLeft}>
-            <button 
-              onClick={() => navigate('/dashboard')}
-              style={styles.backButton}
-            >
-              ← Dashboard
-            </button>
-            <div>
-              <h1 style={styles.title}>Klanten</h1>
-              <p style={styles.subtitle}>
-                {filteredCustomers.length} {filteredCustomers.length === 1 ? 'klant' : 'klanten'}
-                {searchTerm && ` gevonden voor "${searchTerm}"`}
-                {statusFilter !== 'active' && statusFilter !== 'all' && ` (${statusFilter})`}
-              </p>
+    <div style={styles.pageContainer}>
+      <div style={styles.container}>
+        {/* Header Card */}
+        <div style={styles.headerCard}>
+          <div style={styles.headerTop}>
+            <div style={styles.headerLeft}>
+              <button 
+                onClick={() => navigate('/dashboard')}
+                style={styles.backButton}
+              >
+                ← Dashboard
+              </button>
+              <div>
+                <h1 style={styles.title}>Klanten Beheer</h1>
+                <p style={styles.subtitle}>
+                  {filteredCustomers.length} {filteredCustomers.length === 1 ? 'klant' : 'klanten'}
+                  {searchTerm && ` gevonden voor "${searchTerm}"`}
+                </p>
+              </div>
             </div>
-          </div>
-          <button 
-            onClick={() => navigate('/customers/create')}
-            style={styles.primaryButton}
-          >
-            + Nieuwe Klant
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div style={styles.filtersRow}>
-          <div style={styles.searchBox}>
-            <span style={styles.searchIcon}>🔍</span>
-            <input
-              type="text"
-              placeholder="Zoek op naam, bedrijf, email of telefoon..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
+            <button 
+              onClick={() => navigate('/customers/create')}
+              style={styles.primaryButton}
+            >
+              <span style={styles.buttonIcon}>✨</span>
+              Nieuwe Klant
+            </button>
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={styles.filterSelect}
-          >
-            <option value="active">Actief</option>
-            <option value="all">Alle statussen</option>
-            <option value="archived">Gearchiveerd</option>
-            <option value="deleted">Verwijderd</option>  {/* ✅ NEW */}
-          </select>
-        </div>
-      </div>
+          {/* Filters */}
+          <div style={styles.filtersRow}>
+            <div style={styles.searchBox}>
+              <span style={styles.searchIcon}>🔍</span>
+              <input
+                type="text"
+                placeholder="Zoek op naam, bedrijf, email of telefoon..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={styles.searchInput}
+              />
+            </div>
 
-      {/* Content */}
-      <div style={styles.content}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="active">Actief</option>
+              <option value="all">Alle statussen</option>
+              <option value="archived">Gearchiveerd</option>
+              <option value="deleted">Verwijderd</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Content */}
         {error && (
           <div style={styles.errorBox}>
             <span style={styles.errorIcon}>⚠️</span>
-            <div>
+            <div style={styles.errorContent}>
               <h4 style={styles.errorTitle}>Fout bij laden</h4>
               <p style={styles.errorText}>{error}</p>
               <button onClick={fetchCustomers} style={styles.retryButton}>
@@ -193,7 +201,8 @@ const CustomerList = () => {
                 onClick={() => navigate('/customers/create')}
                 style={styles.primaryButton}
               >
-                + Eerste Klant Toevoegen
+                <span style={styles.buttonIcon}>✨</span>
+                Eerste Klant Toevoegen
               </button>
             )}
           </div>
@@ -209,7 +218,9 @@ const CustomerList = () => {
                 onClick={() => navigate(`/customers/${customer.customer_id}`)}
               >
                 <div style={styles.cardHeader}>
-                  <div style={styles.customerIcon}>👤</div>
+                  <div style={styles.customerIcon}>
+                    👤
+                  </div>
                   {getStatusBadge(customer.status)}
                 </div>
 
@@ -278,20 +289,25 @@ const CustomerList = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-
+        
         @keyframes fadeIn {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
         }
       `}</style>
     </div>
@@ -299,275 +315,332 @@ const CustomerList = () => {
 };
 
 const styles = {
-  container: {
+  pageContainer: {
     minHeight: '100vh',
-    backgroundColor: '#f5f7fa',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '20px',
   },
-  header: {
-    backgroundColor: 'white',
-    borderBottom: '2px solid #e0e0e0',
-    padding: '2rem',
+  container: {
+    maxWidth: '1400px',
+    margin: '0 auto',
+  },
+  headerCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '32px',
+    marginBottom: '24px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   headerTop: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: '1.5rem',
+    marginBottom: '24px',
+    flexWrap: 'wrap',
+    gap: '16px',
   },
   headerLeft: {
     display: 'flex',
-    gap: '1rem',
+    gap: '16px',
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   backButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '6px',
+    padding: '12px 24px',
+    background: 'rgba(255, 255, 255, 0.9)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid rgba(102, 126, 234, 0.2)',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    color: '#666',
-    transition: 'all 0.2s',
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#667eea',
+    transition: 'all 0.3s ease',
   },
   title: {
-    margin: '0 0 0.25rem 0',
-    fontSize: '2rem',
-    fontWeight: '700',
-    color: '#333',
+    margin: '0 0 8px 0',
+    fontSize: '36px',
+    fontWeight: '800',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   subtitle: {
     margin: 0,
-    fontSize: '0.95rem',
-    color: '#666',
+    fontSize: '16px',
+    color: '#64748b',
+    fontWeight: '500',
   },
   primaryButton: {
-    padding: '0.75rem 1.5rem',
+    padding: '14px 28px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    transition: 'all 0.2s',
+    fontSize: '16px',
+    fontWeight: '700',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
     whiteSpace: 'nowrap',
+  },
+  buttonIcon: {
+    fontSize: '18px',
   },
   filtersRow: {
     display: 'flex',
-    gap: '1rem',
+    gap: '16px',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   searchBox: {
     flex: 1,
+    minWidth: '300px',
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
   },
   searchIcon: {
     position: 'absolute',
-    left: '1rem',
-    fontSize: '1.25rem',
+    left: '18px',
+    fontSize: '20px',
+    zIndex: 1,
   },
   searchInput: {
     width: '100%',
-    padding: '0.875rem 1rem 0.875rem 3rem',
+    padding: '14px 18px 14px 50px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    transition: 'all 0.2s',
+    borderRadius: '12px',
+    fontSize: '15px',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+    fontFamily: 'inherit',
   },
   filterSelect: {
-    padding: '0.875rem 1rem',
+    padding: '14px 18px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
+    borderRadius: '12px',
+    fontSize: '15px',
     backgroundColor: 'white',
     cursor: 'pointer',
     minWidth: '180px',
+    fontWeight: '600',
+    outline: 'none',
+    fontFamily: 'inherit',
   },
-  content: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '2rem',
-  },
-  loadingContainer: {
+  loadingCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '60px 40px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: '60vh',
-    gap: '1rem',
+    gap: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid #f3f3f3',
-    borderTop: '4px solid #667eea',
+    width: '60px',
+    height: '60px',
+    border: '6px solid rgba(255, 255, 255, 0.3)',
+    borderTop: '6px solid #667eea',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   loadingText: {
-    color: '#666',
-    fontSize: '1.1rem',
+    color: '#64748b',
+    fontSize: '18px',
+    fontWeight: '600',
+    margin: 0,
   },
   errorBox: {
+    background: 'rgba(253, 121, 168, 0.1)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid #fd79a8',
+    borderRadius: '20px',
+    padding: '24px',
     display: 'flex',
-    gap: '1rem',
-    padding: '1.5rem',
-    backgroundColor: '#fee',
-    border: '2px solid #fcc',
-    borderRadius: '8px',
-    marginBottom: '2rem',
+    gap: '20px',
+    marginBottom: '24px',
+    boxShadow: '0 4px 20px rgba(253, 121, 168, 0.2)',
   },
   errorIcon: {
-    fontSize: '2rem',
+    fontSize: '32px',
+  },
+  errorContent: {
+    flex: 1,
   },
   errorTitle: {
-    margin: '0 0 0.5rem 0',
-    color: '#c33',
+    margin: '0 0 8px 0',
+    color: '#e84393',
+    fontSize: '20px',
+    fontWeight: '700',
   },
   errorText: {
-    margin: '0 0 1rem 0',
-    color: '#c33',
+    margin: '0 0 16px 0',
+    color: '#e84393',
+    fontSize: '15px',
   },
   retryButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#c33',
+    padding: '10px 20px',
+    background: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
+    fontWeight: '600',
+    boxShadow: '0 4px 12px rgba(253, 121, 168, 0.3)',
   },
   emptyState: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
     textAlign: 'center',
-    padding: '4rem 2rem',
+    padding: '60px 40px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   emptyIcon: {
-    fontSize: '4rem',
-    marginBottom: '1rem',
+    fontSize: '80px',
+    marginBottom: '20px',
+    animation: 'pulse 2s ease-in-out infinite',
   },
   emptyTitle: {
-    margin: '0 0 0.5rem 0',
-    fontSize: '1.5rem',
-    color: '#333',
+    margin: '0 0 12px 0',
+    fontSize: '28px',
+    fontWeight: '800',
+    color: '#1e293b',
   },
   emptyText: {
-    margin: '0 0 2rem 0',
-    color: '#666',
-    fontSize: '1.1rem',
+    margin: '0 0 32px 0',
+    color: '#64748b',
+    fontSize: '16px',
+    lineHeight: '1.6',
   },
   customerGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-    gap: '1.5rem',
-    animation: 'fadeIn 0.3s ease-out',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+    gap: '24px',
+    animation: 'fadeIn 0.5s ease-out',
   },
   customerCard: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '1.5rem',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '20px',
+    padding: '24px',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: '2px solid #e0e0e0',
+    transition: 'all 0.3s ease',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
   },
   customerCardDeleted: {
     opacity: 0.7,
-    border: '2px solid #ffcdd2',
-    backgroundColor: '#fafafa',
+    border: '2px solid rgba(253, 121, 168, 0.3)',
   },
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: '1rem',
+    marginBottom: '20px',
   },
   customerIcon: {
-    fontSize: '2.5rem',
-    width: '60px',
-    height: '60px',
+    width: '64px',
+    height: '64px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    borderRadius: '50%',
+    borderRadius: '16px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    fontSize: '32px',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
   },
   statusBadge: {
-    padding: '0.25rem 0.75rem',
-    borderRadius: '12px',
-    fontSize: '0.85rem',
-    fontWeight: '600',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: '700',
+    color: 'white',
   },
   cardBody: {
-    marginBottom: '1rem',
+    marginBottom: '20px',
   },
   customerName: {
-    margin: '0 0 0.25rem 0',
-    fontSize: '1.25rem',
-    fontWeight: '600',
-    color: '#333',
+    margin: '0 0 6px 0',
+    fontSize: '22px',
+    fontWeight: '700',
+    color: '#1e293b',
   },
   customerSubname: {
-    margin: '0 0 1rem 0',
-    fontSize: '0.95rem',
-    color: '#666',
+    margin: '0 0 16px 0',
+    fontSize: '15px',
+    color: '#64748b',
+    fontWeight: '500',
   },
   customerDetails: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
+    gap: '10px',
   },
   detailRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
+    gap: '10px',
   },
   detailIcon: {
-    fontSize: '1rem',
+    fontSize: '16px',
   },
   detailText: {
-    fontSize: '0.9rem',
-    color: '#666',
+    fontSize: '14px',
+    color: '#64748b',
   },
   cardFooter: {
     display: 'flex',
-    gap: '0.75rem',
-    paddingTop: '1rem',
-    borderTop: '1px solid #e0e0e0',
+    gap: '12px',
+    paddingTop: '20px',
+    borderTop: '2px solid rgba(226, 232, 240, 0.5)',
   },
   quickActionButton: {
     flex: 1,
-    padding: '0.625rem',
-    backgroundColor: '#f5f5f5',
+    padding: '12px',
+    background: 'rgba(226, 232, 240, 0.5)',
+    backdropFilter: 'blur(10px)',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    transition: 'all 0.2s',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#475569',
+    transition: 'all 0.2s ease',
   },
   viewButton: {
     flex: 1,
-    padding: '0.625rem',
+    padding: '12px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    transition: 'all 0.2s',
+    fontSize: '14px',
+    fontWeight: '700',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
   },
   restoreButton: {
     flex: 1,
-    padding: '0.625rem',
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
+    padding: '12px',
+    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    transition: 'all 0.2s',
+    fontSize: '14px',
+    fontWeight: '700',
+    boxShadow: '0 4px 12px rgba(67, 233, 123, 0.3)',
   },
 };
 

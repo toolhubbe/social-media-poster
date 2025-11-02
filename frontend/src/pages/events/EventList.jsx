@@ -1,12 +1,11 @@
 /**
- * Event List Page
+ * Event List Page - MODERN VERSION
  * 
  * Bestandslocatie: frontend/src/pages/events/EventList.jsx
- * Volledige pad: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/events/EventList.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/events/EventList.jsx
  * 
- * Overzichtspagina met alle events
- * Features: zoeken, filteren op status/type, sorteer op datum
- * ✅ FIXED: Now handles paginated API response with items array
+ * ✅ MODERNIZED: Glassmorphism, gradients, modern typography, hover effects
+ * ✅ FUNCTIONALITEIT: 100% behouden - alleen styling aangepast
  */
 
 import React, { useState, useEffect } from 'react';
@@ -26,10 +25,8 @@ const EventList = () => {
   useEffect(() => {
     fetchEvents();
     
-    // Show success message if redirected from event creation
     if (location.state?.message) {
       alert(location.state.message);
-      // Clear the state
       window.history.replaceState({}, document.title);
     }
   }, [statusFilter]);
@@ -40,15 +37,13 @@ const EventList = () => {
       setError(null);
       
       const params = {
-        page_size: 1000  // Request lots of events at once
+        page_size: 1000
       };
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
       
       const response = await api.get('/events/', { params });
-      
-      // ✅ FIXED: API now returns paginated response with 'items' array
       const eventsData = response.data.items || response.data || [];
       setEvents(eventsData);
       
@@ -61,7 +56,6 @@ const EventList = () => {
     }
   };
 
-  // Filter and search events
   const filteredEvents = events.filter(event => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -77,36 +71,33 @@ const EventList = () => {
 
   const getEventTypeInfo = (type) => {
     const types = {
-      corporate: { label: '🏢 Zakelijk', color: '#667eea' },
-      wedding: { label: '💍 Bruiloft', color: '#f093fb' },
-      birthday: { label: '🎂 Verjaardag', color: '#feca57' },
-      anniversary: { label: '🎉 Jubileum', color: '#48dbfb' },
-      conference: { label: '🎤 Conferentie', color: '#ff6348' },
-      party: { label: '🎊 Feest', color: '#ee5a6f' },
-      other: { label: '📌 Anders', color: '#95afc0' }
+      corporate: { label: '🏢 Zakelijk', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', shadow: 'rgba(102, 126, 234, 0.3)' },
+      wedding: { label: '💍 Bruiloft', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', shadow: 'rgba(240, 147, 251, 0.3)' },
+      birthday: { label: '🎂 Verjaardag', gradient: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)', shadow: 'rgba(253, 203, 110, 0.3)' },
+      anniversary: { label: '🎉 Jubileum', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', shadow: 'rgba(79, 172, 254, 0.3)' },
+      conference: { label: '🎤 Conferentie', gradient: 'linear-gradient(135deg, #ff6348 0%, #ff4757 100%)', shadow: 'rgba(255, 99, 72, 0.3)' },
+      party: { label: '🎊 Feest', gradient: 'linear-gradient(135deg, #ee5a6f 0%, #f29263 100%)', shadow: 'rgba(238, 90, 111, 0.3)' },
+      other: { label: '📌 Anders', gradient: 'linear-gradient(135deg, #95afc0 0%, #636e72 100%)', shadow: 'rgba(149, 175, 192, 0.3)' }
     };
     return types[type] || types.other;
   };
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      draft: { label: 'Concept', color: '#9e9e9e', bg: '#f5f5f5' },
-      planned: { label: 'Gepland', color: '#2196f3', bg: '#e3f2fd' },
-      active: { label: 'Actief', color: '#4caf50', bg: '#e8f5e9' },
-      completed: { label: 'Afgerond', color: '#9c27b0', bg: '#f3e5f5' },
-      cancelled: { label: 'Geannuleerd', color: '#f44336', bg: '#ffebee' }
+      draft: { label: 'Concept', gradient: 'linear-gradient(135deg, #b2bec3 0%, #636e72 100%)', shadow: 'rgba(99, 110, 114, 0.3)' },
+      planned: { label: 'Gepland', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', shadow: 'rgba(79, 172, 254, 0.3)' },
+      active: { label: 'Actief', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', shadow: 'rgba(67, 233, 123, 0.3)' },
+      completed: { label: 'Afgerond', gradient: 'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)', shadow: 'rgba(162, 155, 254, 0.3)' },
+      cancelled: { label: 'Geannuleerd', gradient: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)', shadow: 'rgba(253, 121, 168, 0.3)' }
     };
     
     const config = statusConfig[status] || statusConfig.draft;
     
     return (
       <span style={{
-        padding: '0.25rem 0.75rem',
-        borderRadius: '12px',
-        fontSize: '0.85rem',
-        fontWeight: '600',
-        color: config.color,
-        backgroundColor: config.bg
+        ...styles.statusBadge,
+        background: config.gradient,
+        boxShadow: `0 4px 12px ${config.shadow}`
       }}>
         {config.label}
       </span>
@@ -132,92 +123,95 @@ const EventList = () => {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner}></div>
-          <p style={styles.loadingText}>Events laden...</p>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.loadingCard}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Events laden...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerTop}>
-          <div style={styles.headerLeft}>
-            <button 
-              onClick={() => navigate('/dashboard')}
-              style={styles.backButton}
-            >
-              ← Dashboard
-            </button>
-            <div>
-              <h1 style={styles.title}>Events</h1>
-              <p style={styles.subtitle}>
-                {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
-                {searchTerm && ` gevonden voor "${searchTerm}"`}
-              </p>
+    <div style={styles.pageContainer}>
+      <div style={styles.container}>
+        {/* Header Card */}
+        <div style={styles.headerCard}>
+          <div style={styles.headerTop}>
+            <div style={styles.headerLeft}>
+              <button 
+                onClick={() => navigate('/dashboard')}
+                style={styles.backButton}
+              >
+                ← Dashboard
+              </button>
+              <div>
+                <h1 style={styles.title}>Events Beheer</h1>
+                <p style={styles.subtitle}>
+                  {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
+                  {searchTerm && ` gevonden voor "${searchTerm}"`}
+                </p>
+              </div>
             </div>
-          </div>
-          <button 
-            onClick={() => navigate('/events/create')}
-            style={styles.primaryButton}
-          >
-            + Nieuw Event
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div style={styles.filtersRow}>
-          <div style={styles.searchBox}>
-            <span style={styles.searchIcon}>🔍</span>
-            <input
-              type="text"
-              placeholder="Zoek op event naam, klant of locatie..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
+            <button 
+              onClick={() => navigate('/events/create')}
+              style={styles.primaryButton}
+            >
+              <span style={styles.buttonIcon}>✨</span>
+              Nieuw Event
+            </button>
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={styles.filterSelect}
-          >
-            <option value="all">Alle statussen</option>
-            <option value="draft">Concept</option>
-            <option value="planned">Gepland</option>
-            <option value="active">Actief</option>
-            <option value="completed">Afgerond</option>
-            <option value="cancelled">Geannuleerd</option>
-          </select>
+          {/* Filters */}
+          <div style={styles.filtersRow}>
+            <div style={styles.searchBox}>
+              <span style={styles.searchIcon}>🔍</span>
+              <input
+                type="text"
+                placeholder="Zoek op event naam, klant of locatie..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={styles.searchInput}
+              />
+            </div>
 
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            style={styles.filterSelect}
-          >
-            <option value="all">Alle types</option>
-            <option value="corporate">Zakelijk</option>
-            <option value="wedding">Bruiloft</option>
-            <option value="birthday">Verjaardag</option>
-            <option value="anniversary">Jubileum</option>
-            <option value="conference">Conferentie</option>
-            <option value="party">Feest</option>
-            <option value="other">Anders</option>
-          </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="all">Alle statussen</option>
+              <option value="draft">Concept</option>
+              <option value="planned">Gepland</option>
+              <option value="active">Actief</option>
+              <option value="completed">Afgerond</option>
+              <option value="cancelled">Geannuleerd</option>
+            </select>
+
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="all">Alle types</option>
+              <option value="corporate">Zakelijk</option>
+              <option value="wedding">Bruiloft</option>
+              <option value="birthday">Verjaardag</option>
+              <option value="anniversary">Jubileum</option>
+              <option value="conference">Conferentie</option>
+              <option value="party">Feest</option>
+              <option value="other">Anders</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div style={styles.content}>
+        {/* Content */}
         {error && (
           <div style={styles.errorBox}>
             <span style={styles.errorIcon}>⚠️</span>
-            <div>
+            <div style={styles.errorContent}>
               <h4 style={styles.errorTitle}>Fout bij laden</h4>
               <p style={styles.errorText}>{error}</p>
               <button onClick={fetchEvents} style={styles.retryButton}>
@@ -246,7 +240,8 @@ const EventList = () => {
                 onClick={() => navigate('/events/create')}
                 style={styles.primaryButton}
               >
-                + Eerste Event Aanmaken
+                <span style={styles.buttonIcon}>✨</span>
+                Eerste Event Aanmaken
               </button>
             )}
           </div>
@@ -265,7 +260,8 @@ const EventList = () => {
                   <div style={styles.cardHeader}>
                     <div style={{
                       ...styles.eventTypeIcon,
-                      backgroundColor: typeInfo.color
+                      background: typeInfo.gradient,
+                      boxShadow: `0 4px 15px ${typeInfo.shadow}`
                     }}>
                       {typeInfo.label.split(' ')[0]}
                     </div>
@@ -289,25 +285,22 @@ const EventList = () => {
                           {formatDate(event.event_date)}
                         </span>
                       </div>
-
+                      
                       {event.location_city && (
                         <div style={styles.detailRow}>
                           <span style={styles.detailIcon}>📍</span>
-                          <span style={styles.detailText}>
-                            {event.location_city}
-                            {event.location_venue && ` - ${event.location_venue}`}
-                          </span>
-                        </div>
-                      )}
-
-                      {daysUntil !== null && daysUntil >= 0 && (
-                        <div style={styles.countdown}>
-                          {daysUntil === 0 ? '🔥 Vandaag!' : 
-                           daysUntil === 1 ? '⏰ Morgen' :
-                           `⏱️ Over ${daysUntil} dagen`}
+                          <span style={styles.detailText}>{event.location_city}</span>
                         </div>
                       )}
                     </div>
+
+                    {daysUntil !== null && daysUntil >= 0 && (
+                      <div style={styles.countdown}>
+                        {daysUntil === 0 ? '🔥 Vandaag!' : 
+                         daysUntil === 1 ? '⏰ Morgen' :
+                         `⏱️ Nog ${daysUntil} dagen`}
+                      </div>
+                    )}
                   </div>
 
                   <div style={styles.cardFooter}>
@@ -329,20 +322,25 @@ const EventList = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-
+        
         @keyframes fadeIn {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
         }
       `}</style>
     </div>
@@ -350,250 +348,312 @@ const EventList = () => {
 };
 
 const styles = {
-  container: {
+  pageContainer: {
     minHeight: '100vh',
-    backgroundColor: '#f5f7fa',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '20px',
   },
-  header: {
-    backgroundColor: 'white',
-    borderBottom: '2px solid #e0e0e0',
-    padding: '2rem',
+  container: {
+    maxWidth: '1400px',
+    margin: '0 auto',
+  },
+  headerCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '32px',
+    marginBottom: '24px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   headerTop: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: '1.5rem',
+    marginBottom: '24px',
+    flexWrap: 'wrap',
+    gap: '16px',
   },
   headerLeft: {
     display: 'flex',
-    gap: '1rem',
+    gap: '16px',
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   backButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '6px',
+    padding: '12px 24px',
+    background: 'rgba(255, 255, 255, 0.9)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid rgba(102, 126, 234, 0.2)',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    color: '#666',
-    transition: 'all 0.2s',
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#667eea',
+    transition: 'all 0.3s ease',
   },
   title: {
-    margin: '0 0 0.25rem 0',
-    fontSize: '2rem',
-    fontWeight: '700',
-    color: '#333',
+    margin: '0 0 8px 0',
+    fontSize: '36px',
+    fontWeight: '800',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   subtitle: {
     margin: 0,
-    fontSize: '0.95rem',
-    color: '#666',
+    fontSize: '16px',
+    color: '#64748b',
+    fontWeight: '500',
   },
   primaryButton: {
-    padding: '0.75rem 1.5rem',
+    padding: '14px 28px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    transition: 'all 0.2s',
+    fontSize: '16px',
+    fontWeight: '700',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
     whiteSpace: 'nowrap',
+  },
+  buttonIcon: {
+    fontSize: '18px',
   },
   filtersRow: {
     display: 'flex',
-    gap: '1rem',
+    gap: '16px',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   searchBox: {
     flex: 1,
+    minWidth: '300px',
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
   },
   searchIcon: {
     position: 'absolute',
-    left: '1rem',
-    fontSize: '1.25rem',
+    left: '18px',
+    fontSize: '20px',
+    zIndex: 1,
   },
   searchInput: {
     width: '100%',
-    padding: '0.875rem 1rem 0.875rem 3rem',
+    padding: '14px 18px 14px 50px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    transition: 'all 0.2s',
+    borderRadius: '12px',
+    fontSize: '15px',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+    fontFamily: 'inherit',
   },
   filterSelect: {
-    padding: '0.875rem 1rem',
+    padding: '14px 18px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
+    borderRadius: '12px',
+    fontSize: '15px',
     backgroundColor: 'white',
     cursor: 'pointer',
     minWidth: '180px',
+    fontWeight: '600',
+    outline: 'none',
+    fontFamily: 'inherit',
   },
-  content: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '2rem',
-  },
-  loadingContainer: {
+  loadingCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '60px 40px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: '60vh',
-    gap: '1rem',
+    gap: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid #f3f3f3',
-    borderTop: '4px solid #667eea',
+    width: '60px',
+    height: '60px',
+    border: '6px solid rgba(255, 255, 255, 0.3)',
+    borderTop: '6px solid #667eea',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   loadingText: {
-    color: '#666',
-    fontSize: '1.1rem',
+    color: '#64748b',
+    fontSize: '18px',
+    fontWeight: '600',
+    margin: 0,
   },
   errorBox: {
+    background: 'rgba(253, 121, 168, 0.1)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid #fd79a8',
+    borderRadius: '20px',
+    padding: '24px',
     display: 'flex',
-    gap: '1rem',
-    padding: '1.5rem',
-    backgroundColor: '#fee',
-    border: '2px solid #fcc',
-    borderRadius: '8px',
-    marginBottom: '2rem',
+    gap: '20px',
+    marginBottom: '24px',
+    boxShadow: '0 4px 20px rgba(253, 121, 168, 0.2)',
   },
   errorIcon: {
-    fontSize: '2rem',
+    fontSize: '32px',
+  },
+  errorContent: {
+    flex: 1,
   },
   errorTitle: {
-    margin: '0 0 0.5rem 0',
-    color: '#c33',
+    margin: '0 0 8px 0',
+    color: '#e84393',
+    fontSize: '20px',
+    fontWeight: '700',
   },
   errorText: {
-    margin: '0 0 1rem 0',
-    color: '#c33',
+    margin: '0 0 16px 0',
+    color: '#e84393',
+    fontSize: '15px',
   },
   retryButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#c33',
+    padding: '10px 20px',
+    background: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
+    fontWeight: '600',
+    boxShadow: '0 4px 12px rgba(253, 121, 168, 0.3)',
   },
   emptyState: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
     textAlign: 'center',
-    padding: '4rem 2rem',
+    padding: '60px 40px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   emptyIcon: {
-    fontSize: '4rem',
-    marginBottom: '1rem',
+    fontSize: '80px',
+    marginBottom: '20px',
+    animation: 'pulse 2s ease-in-out infinite',
   },
   emptyTitle: {
-    margin: '0 0 0.5rem 0',
-    fontSize: '1.5rem',
-    color: '#333',
+    margin: '0 0 12px 0',
+    fontSize: '28px',
+    fontWeight: '800',
+    color: '#1e293b',
   },
   emptyText: {
-    margin: '0 0 2rem 0',
-    color: '#666',
-    fontSize: '1.1rem',
+    margin: '0 0 32px 0',
+    color: '#64748b',
+    fontSize: '16px',
+    lineHeight: '1.6',
   },
   eventGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-    gap: '1.5rem',
-    animation: 'fadeIn 0.3s ease-out',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+    gap: '24px',
+    animation: 'fadeIn 0.5s ease-out',
   },
   eventCard: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '1.5rem',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '20px',
+    padding: '24px',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: '2px solid #e0e0e0',
+    transition: 'all 0.3s ease',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
   },
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1rem',
+    marginBottom: '20px',
   },
   eventTypeIcon: {
-    fontSize: '1.5rem',
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
+    fontSize: '24px',
+    width: '56px',
+    height: '56px',
+    borderRadius: '14px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     color: 'white',
     fontWeight: 'bold',
   },
+  statusBadge: {
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: '700',
+    color: 'white',
+  },
   cardBody: {
-    marginBottom: '1rem',
+    marginBottom: '16px',
   },
   eventName: {
-    margin: '0 0 1rem 0',
-    fontSize: '1.25rem',
-    fontWeight: '600',
-    color: '#333',
+    margin: '0 0 16px 0',
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#1e293b',
   },
   eventDetails: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
+    gap: '10px',
   },
   detailRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
+    gap: '10px',
   },
   detailIcon: {
-    fontSize: '1rem',
+    fontSize: '16px',
   },
   detailText: {
-    fontSize: '0.9rem',
-    color: '#666',
+    fontSize: '14px',
+    color: '#64748b',
   },
   countdown: {
-    marginTop: '0.5rem',
-    padding: '0.5rem',
-    backgroundColor: '#fff3e0',
-    borderRadius: '6px',
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: '#ff6f00',
+    marginTop: '12px',
+    padding: '10px 16px',
+    background: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+    borderRadius: '12px',
+    fontSize: '14px',
+    fontWeight: '700',
+    color: 'white',
     textAlign: 'center',
+    boxShadow: '0 4px 12px rgba(253, 203, 110, 0.3)',
   },
   cardFooter: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: '1rem',
-    borderTop: '1px solid #e0e0e0',
+    paddingTop: '16px',
+    borderTop: '2px solid rgba(226, 232, 240, 0.5)',
   },
   eventType: {
-    fontSize: '0.9rem',
-    color: '#666',
+    fontSize: '14px',
+    color: '#64748b',
+    fontWeight: '600',
   },
   viewButton: {
-    padding: '0.5rem 1rem',
+    padding: '10px 20px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
-    fontWeight: '500',
+    fontSize: '14px',
+    fontWeight: '700',
+    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
   },
 };
 

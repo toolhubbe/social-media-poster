@@ -14,7 +14,7 @@ FastAPI routes voor event management
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 from typing import Optional, List
 from uuid import UUID
@@ -237,6 +237,8 @@ def list_events(
     # Base query - ONLY workspace's events + JOIN Customer for customer_name
     query = db.query(Event).join(
         Customer, Event.customer_id == Customer.customer_id
+    ).options(
+        joinedload(Event.customer)  # ✅ Eager load customer relationship
     ).filter(
         Event.workspace_id == workspace.workspace_id  # ✅ Critical: Filter by workspace
     )
@@ -283,13 +285,8 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
-    # ✅ Enrich events with customer_name from relationship
-    for event in events:
-        if event.customer:
-            # Add customer_name to event object dynamically
-            event.customer_name = event.customer.display_name
-        else:
-            event.customer_name = "Onbekende klant"
+    # ✅ Note: customer_name is available automatically via the @property
+    # The JOIN ensures customer relationship is loaded
     
     # Calculate page number and total pages
     page = (skip // limit) + 1 if limit > 0 else 1
@@ -322,6 +319,8 @@ def get_event(
     """
     event = db.query(Event).join(
         Customer, Event.customer_id == Customer.customer_id
+    ).options(
+        joinedload(Event.customer)  # ✅ Eager load customer relationship
     ).filter(
         Event.event_id == event_id,
         Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
@@ -333,11 +332,8 @@ def get_event(
             detail="Event not found in your workspace"
         )
     
-    # ✅ Add customer_name to event object
-    if event.customer:
-        event.customer_name = event.customer.display_name
-    else:
-        event.customer_name = "Onbekende klant"
+    # ✅ customer_name is available automatically via the @property
+    # The JOIN ensures customer relationship is loaded
     
     return event
 

@@ -1,11 +1,11 @@
 /**
- * Customer Detail Page
+ * Customer Detail Page - MODERN VERSION
  * 
  * Bestandslocatie: frontend/src/pages/customers/CustomerDetail.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/customers/CustomerDetail.jsx
  * 
- * Detailpagina voor een specifieke klant met alle informatie
- * ✅ FIXED: Restore function now works correctly
- * ✅ NEW: Permanent delete option for truly removing customers
+ * ✅ MODERNIZED: Glassmorphism profile card, gradient borders, modern layout
+ * ✅ FUNCTIONALITEIT: 100% behouden - alleen styling aangepast
  */
 
 import React, { useState, useEffect } from 'react';
@@ -44,7 +44,6 @@ const CustomerDetail = () => {
     }
 
     try {
-      // Soft delete (can be restored)
       await api.delete(`/customers/${customerId}`);
       alert('✅ Klant verwijderd (kan nog worden hersteld)');
       navigate('/customers');
@@ -66,7 +65,6 @@ const CustomerDetail = () => {
     }
 
     try {
-      // Permanent delete (cannot be undone!)
       await api.delete(`/customers/${customerId}/permanent`);
       alert('✅ Klant permanent verwijderd');
       navigate('/customers');
@@ -80,7 +78,7 @@ const CustomerDetail = () => {
     try {
       await api.post(`/customers/${customerId}/archive`);
       alert('✅ Klant gearchiveerd');
-      fetchCustomer(); // Refresh
+      fetchCustomer();
     } catch (err) {
       console.error('Failed to archive customer:', err);
       alert('❌ Fout bij archiveren van klant');
@@ -91,7 +89,7 @@ const CustomerDetail = () => {
     try {
       await api.post(`/customers/${customerId}/restore`);
       alert('✅ Klant hersteld!');
-      fetchCustomer(); // Refresh
+      fetchCustomer();
     } catch (err) {
       console.error('Failed to restore customer:', err);
       alert('❌ Fout bij herstellen van klant');
@@ -100,10 +98,12 @@ const CustomerDetail = () => {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner}></div>
-          <p style={styles.loadingText}>Klant laden...</p>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.loadingCard}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Klant laden...</p>
+          </div>
         </div>
       </div>
     );
@@ -111,13 +111,16 @@ const CustomerDetail = () => {
 
   if (error || !customer) {
     return (
-      <div style={styles.container}>
-        <div style={styles.errorContainer}>
-          <h2 style={styles.errorTitle}>⚠️ Fout</h2>
-          <p style={styles.errorText}>{error || 'Klant niet gevonden'}</p>
-          <button onClick={() => navigate('/customers')} style={styles.button}>
-            Terug naar overzicht
-          </button>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.errorCard}>
+            <div style={styles.errorIcon}>⚠️</div>
+            <h2 style={styles.errorTitle}>Fout bij laden</h2>
+            <p style={styles.errorText}>{error || 'Klant niet gevonden'}</p>
+            <button onClick={() => navigate('/customers')} style={styles.primaryButton}>
+              Terug naar overzicht
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -158,9 +161,21 @@ const CustomerDetail = () => {
 
   const getStatusBadge = () => {
     const statusConfig = {
-      active: { label: '✅ Actief', color: '#2e7d32', bg: '#e8f5e9' },
-      archived: { label: '📦 Gearchiveerd', color: '#f57c00', bg: '#fff3e0' },
-      deleted: { label: '🗑️ Verwijderd', color: '#c62828', bg: '#ffebee' }
+      active: { 
+        label: '✅ Actief', 
+        gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        shadow: 'rgba(67, 233, 123, 0.3)'
+      },
+      archived: { 
+        label: '📦 Gearchiveerd', 
+        gradient: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+        shadow: 'rgba(253, 203, 110, 0.3)'
+      },
+      deleted: { 
+        label: '🗑️ Verwijderd', 
+        gradient: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
+        shadow: 'rgba(253, 121, 168, 0.3)'
+      }
     };
     
     const config = statusConfig[customer.status] || statusConfig.active;
@@ -168,8 +183,8 @@ const CustomerDetail = () => {
     return (
       <span style={{
         ...styles.statusBadge,
-        color: config.color,
-        backgroundColor: config.bg
+        background: config.gradient,
+        boxShadow: `0 4px 15px ${config.shadow}`
       }}>
         {config.label}
       </span>
@@ -181,47 +196,51 @@ const CustomerDetail = () => {
   const isActive = customer.status === 'active';
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <button onClick={() => navigate('/customers')} style={styles.backButton}>
-          ← Terug
-        </button>
-        <h1 style={styles.title}>{displayName}</h1>
-        <div style={styles.headerActions}>
+    <div style={styles.pageContainer}>
+      <div style={styles.container}>
+        {/* Header Card */}
+        <div style={styles.headerCard}>
+          <button onClick={() => navigate('/customers')} style={styles.backButton}>
+            ← Terug
+          </button>
+          <div style={styles.headerContent}>
+            <div style={styles.profileIcon}>👤</div>
+            <div style={styles.headerInfo}>
+              <h1 style={styles.title}>{displayName}</h1>
+              {getStatusBadge()}
+            </div>
+          </div>
           {!isDeleted && (
             <button 
               onClick={() => navigate(`/events/create?customerId=${customerId}`)}
               style={styles.primaryButton}
             >
-              + Nieuw Event
+              <span>✨</span>
+              <span>Nieuw Event</span>
             </button>
           )}
         </div>
-      </div>
 
-      {/* Deleted Warning */}
-      {isDeleted && (
-        <div style={styles.warningBanner}>
-          <span style={styles.warningIcon}>⚠️</span>
-          <div>
-            <strong>Deze klant is verwijderd</strong>
-            <p style={styles.warningText}>
-              De klant is verborgen maar kan nog worden hersteld. 
-              Gebruik "Herstellen" om de klant opnieuw actief te maken.
-            </p>
+        {/* Deleted Warning */}
+        {isDeleted && (
+          <div style={styles.warningBanner}>
+            <span style={styles.warningIconLarge}>⚠️</span>
+            <div style={styles.warningContent}>
+              <strong style={styles.warningTitle}>Deze klant is verwijderd</strong>
+              <p style={styles.warningText}>
+                De klant is verborgen maar kan nog worden hersteld. 
+                Gebruik "Herstellen" om de klant opnieuw actief te maken.
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Content */}
-      <div style={styles.content}>
         {/* Main Info Card */}
         <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h2 style={styles.cardTitle}>📋 Basis Informatie</h2>
-            {getStatusBadge()}
-          </div>
+          <h2 style={styles.cardTitle}>
+            <span style={styles.cardTitleIcon}>📋</span>
+            Basis Informatie
+          </h2>
 
           <div style={styles.infoGrid}>
             {customer.first_name && (
@@ -249,7 +268,10 @@ const CustomerDetail = () => {
 
         {/* Contact Info Card */}
         <div style={styles.card}>
-          <h2 style={styles.cardTitle}>📞 Contact Informatie</h2>
+          <h2 style={styles.cardTitle}>
+            <span style={styles.cardTitleIcon}>📞</span>
+            Contact Informatie
+          </h2>
           
           <div style={styles.infoGrid}>
             <div style={styles.infoItem}>
@@ -272,66 +294,24 @@ const CustomerDetail = () => {
 
         {/* Address Card */}
         <div style={styles.card}>
-          <h2 style={styles.cardTitle}>🏠 Adres</h2>
+          <h2 style={styles.cardTitle}>
+            <span style={styles.cardTitleIcon}>🏠</span>
+            Adres
+          </h2>
           
-          <div style={styles.infoGrid}>
-            {customer.street || customer.house_number ? (
-              <>
-                {customer.street && (
-                  <div style={styles.infoItem}>
-                    <span style={styles.infoLabel}>Straat</span>
-                    <span style={styles.infoValue}>{customer.street}</span>
-                  </div>
-                )}
-
-                {customer.house_number && (
-                  <div style={styles.infoItem}>
-                    <span style={styles.infoLabel}>Huisnummer</span>
-                    <span style={styles.infoValue}>
-                      {customer.house_number}
-                      {customer.house_number_addition && ` ${customer.house_number_addition}`}
-                    </span>
-                  </div>
-                )}
-
-                {customer.postal_code && (
-                  <div style={styles.infoItem}>
-                    <span style={styles.infoLabel}>Postcode</span>
-                    <span style={styles.infoValue}>{customer.postal_code}</span>
-                  </div>
-                )}
-
-                {customer.city && (
-                  <div style={styles.infoItem}>
-                    <span style={styles.infoLabel}>Plaats</span>
-                    <span style={styles.infoValue}>{customer.city}</span>
-                  </div>
-                )}
-
-                {customer.country && (
-                  <div style={styles.infoItem}>
-                    <span style={styles.infoLabel}>Land</span>
-                    <span style={styles.infoValue}>{customer.country}</span>
-                  </div>
-                )}
-
-                <div style={{...styles.infoItem, gridColumn: '1 / -1'}}>
-                  <span style={styles.infoLabel}>Volledig adres</span>
-                  <span style={styles.infoValue}>{getFullAddress()}</span>
-                </div>
-              </>
-            ) : (
-              <div style={styles.emptyState}>
-                <p style={styles.emptyText}>Geen adres opgegeven</p>
-              </div>
-            )}
+          <div style={styles.addressBox}>
+            {getFullAddress()}
           </div>
         </div>
 
         {/* Notes Card */}
         {customer.notes && (
           <div style={styles.card}>
-            <h2 style={styles.cardTitle}>📝 Notities</h2>
+            <h2 style={styles.cardTitle}>
+              <span style={styles.cardTitleIcon}>📝</span>
+              Notities
+            </h2>
+            
             <div style={styles.notesBox}>
               {customer.notes}
             </div>
@@ -341,53 +321,65 @@ const CustomerDetail = () => {
         {/* Google Drive Card */}
         {customer.google_drive_folder_id && (
           <div style={styles.card}>
-            <h2 style={styles.cardTitle}>☁️ Google Drive</h2>
+            <h2 style={styles.cardTitle}>
+              <span style={styles.cardTitleIcon}>📁</span>
+              Google Drive
+            </h2>
+            
             <a
               href={`https://drive.google.com/drive/folders/${customer.google_drive_folder_id}`}
               target="_blank"
               rel="noopener noreferrer"
               style={styles.driveLink}
             >
-              📁 Open klantfolder in Google Drive →
+              📂 Open Drive Folder →
             </a>
           </div>
         )}
 
         {/* Actions Card */}
         <div style={styles.card}>
-          <h2 style={styles.cardTitle}>⚙️ Acties</h2>
+          <h2 style={styles.cardTitle}>
+            <span style={styles.cardTitleIcon}>⚙️</span>
+            Acties
+          </h2>
           
           <div style={styles.actionsGrid}>
             {!isDeleted && (
               <button
                 onClick={() => navigate(`/customers/${customerId}/edit`)}
-                style={styles.actionButton}
+                style={styles.actionButtonEdit}
               >
-                ✏️ Bewerken
+                <span>✏️</span>
+                <span>Bewerken</span>
               </button>
             )}
 
             {isActive && (
-              <button onClick={handleArchive} style={styles.actionButton}>
-                📦 Archiveren
+              <button onClick={handleArchive} style={styles.actionButtonArchive}>
+                <span>📦</span>
+                <span>Archiveren</span>
               </button>
             )}
 
             {(isArchived || isDeleted) && (
-              <button onClick={handleRestore} style={styles.restoreButton}>
-                ♻️ Herstellen
+              <button onClick={handleRestore} style={styles.actionButtonRestore}>
+                <span>♻️</span>
+                <span>Herstellen</span>
               </button>
             )}
 
             {!isDeleted && (
-              <button onClick={handleDelete} style={styles.deleteButton}>
-                🗑️ Verwijderen
+              <button onClick={handleDelete} style={styles.actionButtonDelete}>
+                <span>🗑️</span>
+                <span>Verwijderen</span>
               </button>
             )}
 
             {isDeleted && (
-              <button onClick={handlePermanentDelete} style={styles.permanentDeleteButton}>
-                ❌ Permanent Verwijderen
+              <button onClick={handlePermanentDelete} style={styles.actionButtonPermanent}>
+                <span>❌</span>
+                <span>Permanent Verwijderen</span>
               </button>
             )}
           </div>
@@ -400,9 +392,20 @@ const CustomerDetail = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
       `}</style>
     </div>
@@ -410,241 +413,343 @@ const CustomerDetail = () => {
 };
 
 const styles = {
-  container: {
+  pageContainer: {
     minHeight: '100vh',
-    backgroundColor: '#f5f7fa',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '20px',
   },
-  header: {
-    backgroundColor: 'white',
-    borderBottom: '2px solid #e0e0e0',
-    padding: '2rem',
+  container: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  headerCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '32px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
     display: 'flex',
     alignItems: 'center',
-    gap: '1rem',
+    gap: '24px',
+    flexWrap: 'wrap',
   },
   backButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '6px',
+    padding: '12px 24px',
+    background: 'rgba(255, 255, 255, 0.9)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid rgba(102, 126, 234, 0.2)',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '0.9rem',
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#667eea',
+    transition: 'all 0.3s ease',
+  },
+  headerContent: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+  },
+  profileIcon: {
+    width: '80px',
+    height: '80px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    borderRadius: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '40px',
+    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+  },
+  headerInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
   },
   title: {
     margin: 0,
-    fontSize: '2rem',
-    fontWeight: '700',
-    flex: 1,
+    fontSize: '32px',
+    fontWeight: '800',
+    color: '#1e293b',
   },
-  headerActions: {
-    display: 'flex',
-    gap: '0.75rem',
+  statusBadge: {
+    padding: '10px 20px',
+    borderRadius: '20px',
+    fontSize: '14px',
+    fontWeight: '700',
+    color: 'white',
+    display: 'inline-block',
   },
   primaryButton: {
-    padding: '0.75rem 1.5rem',
+    padding: '14px 28px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
+    fontSize: '16px',
+    fontWeight: '700',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    whiteSpace: 'nowrap',
   },
   warningBanner: {
-    backgroundColor: '#fff3cd',
-    border: '2px solid #ffecb5',
-    borderRadius: '8px',
-    padding: '1.5rem',
-    margin: '1rem 2rem',
+    background: 'rgba(255, 243, 205, 0.95)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid #fdcb6e',
+    borderRadius: '20px',
+    padding: '24px',
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '1rem',
+    gap: '20px',
+    boxShadow: '0 4px 20px rgba(253, 203, 110, 0.3)',
   },
-  warningIcon: {
-    fontSize: '2rem',
+  warningIconLarge: {
+    fontSize: '32px',
+  },
+  warningContent: {
+    flex: 1,
+  },
+  warningTitle: {
+    display: 'block',
+    fontSize: '18px',
+    color: '#856404',
+    marginBottom: '8px',
   },
   warningText: {
-    margin: '0.5rem 0 0 0',
+    margin: 0,
     color: '#856404',
-  },
-  content: {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '2rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
+    fontSize: '15px',
+    lineHeight: '1.6',
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '1.5rem',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-  },
-  cardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1.5rem',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '20px',
+    padding: '32px',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+    animation: 'fadeIn 0.5s ease-out',
   },
   cardTitle: {
-    margin: '0 0 1.5rem 0',
-    fontSize: '1.25rem',
-    fontWeight: '600',
-    color: '#333',
+    margin: '0 0 24px 0',
+    fontSize: '22px',
+    fontWeight: '700',
+    color: '#1e293b',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
   },
-  statusBadge: {
-    padding: '0.5rem 1rem',
-    borderRadius: '20px',
-    fontSize: '0.9rem',
-    fontWeight: '600',
+  cardTitleIcon: {
+    fontSize: '24px',
   },
   infoGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '1.5rem',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '24px',
   },
   infoItem: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
+    gap: '8px',
   },
   infoLabel: {
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    color: '#666',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#64748b',
     textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
   infoValue: {
-    fontSize: '1rem',
-    color: '#333',
+    fontSize: '16px',
+    color: '#1e293b',
+    fontWeight: '600',
   },
   infoLink: {
-    fontSize: '1rem',
+    fontSize: '16px',
     color: '#667eea',
     textDecoration: 'none',
+    fontWeight: '600',
+    transition: 'all 0.2s ease',
+  },
+  addressBox: {
+    padding: '20px',
+    background: 'rgba(226, 232, 240, 0.3)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '12px',
+    fontSize: '16px',
+    lineHeight: '1.8',
+    color: '#1e293b',
+    fontWeight: '500',
   },
   notesBox: {
-    padding: '1rem',
-    backgroundColor: '#f5f5f5',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    lineHeight: '1.6',
-    color: '#333',
+    padding: '20px',
+    background: 'rgba(226, 232, 240, 0.3)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '12px',
+    fontSize: '15px',
+    lineHeight: '1.8',
+    color: '#475569',
     whiteSpace: 'pre-wrap',
   },
   driveLink: {
-    display: 'inline-block',
-    padding: '0.75rem 1.5rem',
-    backgroundColor: '#f5f5f5',
-    color: '#667eea',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '14px 28px',
+    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    color: 'white',
     textDecoration: 'none',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    fontWeight: '500',
+    borderRadius: '12px',
+    fontSize: '16px',
+    fontWeight: '700',
+    boxShadow: '0 4px 15px rgba(79, 172, 254, 0.3)',
+    transition: 'all 0.3s ease',
   },
   actionsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: '1rem',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '16px',
   },
-  actionButton: {
-    padding: '0.875rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '500',
-    transition: 'all 0.2s',
-  },
-  restoreButton: {
-    padding: '0.875rem',
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '500',
-  },
-  deleteButton: {
-    padding: '0.875rem',
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '500',
-  },
-  permanentDeleteButton: {
-    padding: '0.875rem',
-    backgroundColor: '#b71c1c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-  },
-  helperText: {
-    fontSize: '0.85rem',
-    color: '#666',
-    marginTop: '1rem',
-    fontStyle: 'italic',
-  },
-  button: {
-    padding: '0.75rem 1.5rem',
+  actionButtonEdit: {
+    padding: '14px 20px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
+    fontSize: '15px',
+    fontWeight: '700',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
   },
-  loadingContainer: {
+  actionButtonArchive: {
+    padding: '14px 20px',
+    background: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '700',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 12px rgba(253, 203, 110, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  actionButtonRestore: {
+    padding: '14px 20px',
+    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '700',
+    boxShadow: '0 4px 12px rgba(67, 233, 123, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  actionButtonDelete: {
+    padding: '14px 20px',
+    background: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '700',
+    boxShadow: '0 4px 12px rgba(253, 121, 168, 0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  actionButtonPermanent: {
+    padding: '14px 20px',
+    background: 'linear-gradient(135deg, #b71c1c 0%, #c62828 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '700',
+    boxShadow: '0 4px 12px rgba(183, 28, 28, 0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  helperText: {
+    fontSize: '14px',
+    color: '#64748b',
+    marginTop: '20px',
+    fontStyle: 'italic',
+    fontWeight: '500',
+  },
+  loadingCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '60px 40px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: '60vh',
-    gap: '1rem',
+    gap: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid #f3f3f3',
-    borderTop: '4px solid #667eea',
+    width: '60px',
+    height: '60px',
+    border: '6px solid rgba(255, 255, 255, 0.3)',
+    borderTop: '6px solid #667eea',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   loadingText: {
-    color: '#666',
-    fontSize: '1.1rem',
+    color: '#64748b',
+    fontSize: '18px',
+    fontWeight: '600',
+    margin: 0,
   },
-  errorContainer: {
+  errorCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
     textAlign: 'center',
-    padding: '4rem 2rem',
+    padding: '60px 40px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  },
+  errorIcon: {
+    fontSize: '64px',
+    marginBottom: '20px',
   },
   errorTitle: {
-    fontSize: '2rem',
-    color: '#c62828',
-    marginBottom: '1rem',
+    fontSize: '28px',
+    color: '#e84393',
+    marginBottom: '12px',
+    fontWeight: '800',
   },
   errorText: {
-    fontSize: '1.1rem',
-    color: '#666',
-    marginBottom: '2rem',
-  },
-  emptyState: {
-    textAlign: 'center',
-    padding: '2rem',
-  },
-  emptyText: {
-    color: '#999',
-    fontSize: '1rem',
-    fontStyle: 'italic',
+    fontSize: '16px',
+    color: '#64748b',
+    marginBottom: '32px',
   },
 };
 

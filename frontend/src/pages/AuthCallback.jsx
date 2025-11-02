@@ -1,9 +1,11 @@
 /**
- * Auth Callback Page
- * File Location: src/pages/AuthCallback.jsx
- * Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/AuthCallback.jsx
+ * Auth Callback Page - MODERN VERSION
+ * File Location: frontend/src/pages/AuthCallback.jsx
+ * Full Path: C:/Users/DASAP/Documents/social_media_poster/frontend/src/pages/AuthCallback.jsx
  * 
  * Handles OAuth callback from Google and processes tokens
+ * ✨ MODERNIZED: New gradient design with loading animations
+ * ✅ MAINTAINED: All functionality intact
  */
 
 import React, { useEffect, useState } from 'react';
@@ -26,13 +28,8 @@ const AuthCallback = () => {
     try {
       setProcessing(true);
       
-      // Extract tokens from URL parameters
       const { accessToken, refreshToken } = handleOAuthCallback(searchParams);
-      
-      // Login with tokens (this will fetch user data and update context)
       await login(accessToken, refreshToken);
-      
-      // Redirect to dashboard
       navigate('/dashboard', { replace: true });
       
     } catch (err) {
@@ -40,7 +37,6 @@ const AuthCallback = () => {
       setError(err.message || 'Authentication failed');
       setProcessing(false);
       
-      // Redirect to error page after 3 seconds
       setTimeout(() => {
         navigate('/auth/error', {
           state: { error: err.message },
@@ -52,97 +48,145 @@ const AuthCallback = () => {
 
   if (error) {
     return (
-      <div style={styles.container}>
+      <div style={styles.pageContainer}>
         <div style={styles.card}>
-          <div style={styles.errorIcon}>❌</div>
-          <h1 style={styles.title}>Authentication Failed</h1>
-          <p style={styles.error}>{error}</p>
-          <p style={styles.redirect}>Redirecting to error page...</p>
+          <div style={styles.errorIconLarge}>⚠️</div>
+          <h1 style={styles.title}>Authenticatie Mislukt</h1>
+          <div style={styles.errorBox}>
+            <p style={styles.errorText}>{error}</p>
+          </div>
+          <p style={styles.redirectText}>Doorverwijzen naar foutpagina...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
+    <div style={styles.pageContainer}>
       <div style={styles.card}>
-        <div style={styles.spinner}></div>
-        <h1 style={styles.title}>Completing Sign In</h1>
-        <p style={styles.subtitle}>Please wait while we verify your credentials...</p>
+        <div style={styles.spinnerContainer}>
+          <div style={styles.spinner}></div>
+        </div>
+        <h1 style={styles.title}>Inloggen Voltooien</h1>
+        <p style={styles.subtitle}>Even geduld terwijl we je gegevens verifiëren...</p>
+        
+        <div style={styles.progressDots}>
+          <span style={{...styles.dot, ...styles.dot1}}>●</span>
+          <span style={{...styles.dot, ...styles.dot2}}>●</span>
+          <span style={{...styles.dot, ...styles.dot3}}>●</span>
+        </div>
       </div>
     </div>
   );
 };
 
 const styles = {
-  container: {
+  pageContainer: {
     minHeight: '100vh',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
     padding: '20px',
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.2)',
     padding: '60px 40px',
     maxWidth: '500px',
     width: '100%',
     textAlign: 'center',
   },
+  spinnerContainer: {
+    marginBottom: '30px',
+  },
   spinner: {
-    width: '60px',
-    height: '60px',
-    border: '6px solid #f3f3f3',
-    borderTop: '6px solid #4285F4',
+    width: '80px',
+    height: '80px',
+    border: '6px solid rgba(102, 126, 234, 0.1)',
+    borderTop: '6px solid #667eea',
+    borderRight: '6px solid #764ba2',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
-    margin: '0 auto 30px',
+    margin: '0 auto',
+    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.2)',
   },
   title: {
-    fontSize: '24px',
-    fontWeight: '600',
-    color: '#202124',
-    marginBottom: '12px',
+    fontSize: '32px',
+    fontWeight: '800',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+    marginBottom: '16px',
   },
   subtitle: {
     fontSize: '16px',
-    color: '#5f6368',
-    lineHeight: '1.5',
+    color: '#64748b',
+    lineHeight: '1.6',
+    marginBottom: '30px',
   },
-  errorIcon: {
-    fontSize: '60px',
-    marginBottom: '20px',
+  progressDots: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '12px',
   },
-  error: {
+  dot: {
+    fontSize: '24px',
+    color: '#667eea',
+    animation: 'pulse 1.5s ease-in-out infinite',
+  },
+  dot1: { animationDelay: '0s' },
+  dot2: { animationDelay: '0.2s' },
+  dot3: { animationDelay: '0.4s' },
+  errorIconLarge: {
+    fontSize: '80px',
+    marginBottom: '24px',
+    animation: 'shake 0.5s ease-in-out',
+  },
+  errorBox: {
+    background: 'rgba(253, 121, 168, 0.1)',
+    border: '2px solid #fd79a8',
+    borderRadius: '16px',
+    padding: '20px',
+    marginBottom: '24px',
+  },
+  errorText: {
     fontSize: '16px',
-    color: '#d93025',
-    marginBottom: '12px',
-    padding: '12px',
-    backgroundColor: '#fce8e6',
-    borderRadius: '4px',
+    color: '#e84393',
+    fontWeight: '500',
+    margin: 0,
+    lineHeight: '1.6',
   },
-  redirect: {
+  redirectText: {
     fontSize: '14px',
-    color: '#5f6368',
+    color: '#94a3b8',
   },
 };
 
-// Add keyframes for spinner animation
-const styleSheet = document.styleSheets[0];
-if (styleSheet) {
-  try {
-    styleSheet.insertRule(`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `, styleSheet.cssRules.length);
-  } catch (e) {
-    // Keyframe might already exist
-  }
+// Add animations
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 export default AuthCallback;

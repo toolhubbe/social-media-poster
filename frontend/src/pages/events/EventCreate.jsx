@@ -1,12 +1,11 @@
 /**
- * Event Create Page
+ * Event Create Page - MODERN VERSION
  * 
  * Bestandslocatie: frontend/src/pages/events/EventCreate.jsx
  * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/events/EventCreate.jsx
  * 
- * Main page die de 2-stap event creation flow orkestreert:
- * Stap 1: Customer Selector
- * Stap 2: Event Form
+ * ✅ MODERNIZED: Gradient progress bar, glassmorphism, modern styling
+ * ✅ FUNCTIONALITEIT: 100% behouden - alleen styling aangepast
  */
 
 import React, { useState } from 'react';
@@ -20,13 +19,11 @@ const EventCreate = () => {
   const [step, setStep] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
-  // Check if we're returning from customer creation with a selected customer
   React.useEffect(() => {
     const customerId = searchParams.get('customerId');
     const customerName = searchParams.get('customerName');
     
     if (customerId && customerName) {
-      // Automatically select the newly created customer and go to step 2
       setSelectedCustomer({
         customer_id: parseInt(customerId),
         company_name: customerName,
@@ -47,13 +44,8 @@ const EventCreate = () => {
   };
 
   const handleEventCreated = (event) => {
-    // Show success and redirect to events list
     console.log('Event successfully created:', event);
     
-    // You could optionally redirect to the event detail page:
-    // navigate(`/events/${event.event_id}`);
-    
-    // Or redirect to events list:
     navigate('/events', { 
       state: { 
         message: 'Event succesvol aangemaakt!',
@@ -63,150 +55,79 @@ const EventCreate = () => {
   };
 
   return (
-    <div className="event-create-page">
-      {/* Progress Indicator */}
-      <div className="progress-container">
-        <div className="progress-bar">
-          <div className={`progress-step ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}>
-            <div className="step-number">1</div>
-            <div className="step-label">Klant selecteren</div>
+    <div style={styles.pageContainer}>
+      <div style={styles.container}>
+        {/* Progress Container */}
+        <div style={styles.progressCard}>
+          <div style={styles.progressBar}>
+            <div style={{
+              ...styles.progressStep,
+              ...(step >= 1 ? styles.progressStepActive : {}),
+              ...(step > 1 ? styles.progressStepCompleted : {})
+            }}>
+              <div style={{
+                ...styles.stepNumber,
+                ...(step >= 1 ? styles.stepNumberActive : {}),
+                ...(step > 1 ? styles.stepNumberCompleted : {})
+              }}>
+                {step > 1 ? '✓' : '1'}
+              </div>
+              <div style={{
+                ...styles.stepLabel,
+                ...(step >= 1 ? styles.stepLabelActive : {})
+              }}>
+                Klant selecteren
+              </div>
+            </div>
+            
+            <div style={styles.progressLine}>
+              <div style={{
+                ...styles.progressLineFill,
+                ...(step >= 2 ? styles.progressLineFilled : {})
+              }}></div>
+            </div>
+            
+            <div style={{
+              ...styles.progressStep,
+              ...(step >= 2 ? styles.progressStepActive : {})
+            }}>
+              <div style={{
+                ...styles.stepNumber,
+                ...(step >= 2 ? styles.stepNumberActive : {})
+              }}>
+                2
+              </div>
+              <div style={{
+                ...styles.stepLabel,
+                ...(step >= 2 ? styles.stepLabelActive : {})
+              }}>
+                Event details
+              </div>
+            </div>
           </div>
-          
-          <div className="progress-line">
-            <div className={`progress-line-fill ${step >= 2 ? 'filled' : ''}`}></div>
-          </div>
-          
-          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>
-            <div className="step-number">2</div>
-            <div className="step-label">Event details</div>
-          </div>
+        </div>
+
+        {/* Step Content */}
+        <div style={styles.stepContent}>
+          {step === 1 && (
+            <CustomerSelector onCustomerSelect={handleCustomerSelect} />
+          )}
+
+          {step === 2 && selectedCustomer && (
+            <EventForm
+              customer={selectedCustomer}
+              onBack={handleBackToCustomerSelector}
+              onSuccess={handleEventCreated}
+            />
+          )}
         </div>
       </div>
 
-      {/* Step Content */}
-      <div className="step-content">
-        {step === 1 && (
-          <CustomerSelector onCustomerSelect={handleCustomerSelect} />
-        )}
-
-        {step === 2 && selectedCustomer && (
-          <EventForm
-            customer={selectedCustomer}
-            onBack={handleBackToCustomerSelector}
-            onSuccess={handleEventCreated}
-          />
-        )}
-      </div>
-
-      {/* Styles */}
-      <style jsx>{`
-        .event-create-page {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
-          padding: 2rem 0;
-        }
-
-        .progress-container {
-          max-width: 600px;
-          margin: 0 auto 2rem auto;
-          padding: 0 1rem;
-        }
-
-        .progress-bar {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 1rem;
-          background: white;
-          padding: 1.5rem;
-          border-radius: 12px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .progress-step {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
-          position: relative;
-          transition: all 0.3s;
-        }
-
-        .step-number {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: #e0e0e0;
-          color: #999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: 1.25rem;
-          transition: all 0.3s;
-        }
-
-        .progress-step.active .step-number {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          transform: scale(1.1);
-        }
-
-        .progress-step.completed .step-number {
-          background: #4caf50;
-          color: white;
-        }
-
-        .step-label {
-          font-size: 0.875rem;
-          color: #666;
-          font-weight: 500;
-          text-align: center;
-          white-space: nowrap;
-        }
-
-        .progress-step.active .step-label {
-          color: #667eea;
-          font-weight: 600;
-        }
-
-        .progress-step.completed .step-label {
-          color: #4caf50;
-        }
-
-        .progress-line {
-          flex: 1;
-          height: 4px;
-          background: #e0e0e0;
-          border-radius: 2px;
-          position: relative;
-          overflow: hidden;
-          min-width: 100px;
-        }
-
-        .progress-line-fill {
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          width: 0%;
-          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-          transition: width 0.5s ease-in-out;
-        }
-
-        .progress-line-fill.filled {
-          width: 100%;
-        }
-
-        .step-content {
-          animation: fadeIn 0.3s ease-in;
-        }
-
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
@@ -214,60 +135,128 @@ const EventCreate = () => {
           }
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-          .event-create-page {
-            padding: 1rem 0;
-          }
-
-          .progress-container {
-            padding: 0 0.5rem;
-            margin-bottom: 1rem;
-          }
-
-          .progress-bar {
-            padding: 1rem;
-          }
-
-          .step-number {
-            width: 40px;
-            height: 40px;
-            font-size: 1rem;
-          }
-
-          .step-label {
-            font-size: 0.75rem;
-          }
-
-          .progress-line {
-            min-width: 50px;
-          }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
         }
 
-        @media (max-width: 480px) {
-          .progress-bar {
-            flex-direction: column;
-            gap: 1.5rem;
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
           }
-
-          .progress-line {
-            width: 4px;
-            height: 50px;
-            min-width: auto;
-          }
-
-          .progress-line-fill {
-            width: 100%;
-            height: 0%;
-          }
-
-          .progress-line-fill.filled {
-            height: 100%;
+          to {
+            opacity: 1;
+            transform: translateX(0);
           }
         }
       `}</style>
     </div>
   );
+};
+
+const styles = {
+  pageContainer: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '40px 20px',
+  },
+  container: {
+    maxWidth: '1000px',
+    margin: '0 auto',
+  },
+  progressCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '32px',
+    marginBottom: '32px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+    animation: 'fadeIn 0.5s ease-out',
+  },
+  progressBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '20px',
+  },
+  progressStep: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px',
+    position: 'relative',
+    transition: 'all 0.3s ease',
+  },
+  progressStepActive: {
+    transform: 'scale(1.05)',
+  },
+  progressStepCompleted: {},
+  stepNumber: {
+    width: '60px',
+    height: '60px',
+    borderRadius: '50%',
+    background: 'rgba(226, 232, 240, 0.5)',
+    color: '#94a3b8',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '800',
+    fontSize: '24px',
+    transition: 'all 0.3s ease',
+    border: '3px solid rgba(226, 232, 240, 0.8)',
+  },
+  stepNumberActive: {
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
+    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+    border: '3px solid transparent',
+    animation: 'pulse 2s ease-in-out infinite',
+  },
+  stepNumberCompleted: {
+    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    color: 'white',
+    boxShadow: '0 4px 20px rgba(67, 233, 123, 0.4)',
+    border: '3px solid transparent',
+  },
+  stepLabel: {
+    fontSize: '15px',
+    color: '#94a3b8',
+    fontWeight: '600',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.3s ease',
+  },
+  stepLabelActive: {
+    color: '#667eea',
+    fontWeight: '800',
+    fontSize: '16px',
+  },
+  progressLine: {
+    flex: 1,
+    height: '6px',
+    background: 'rgba(226, 232, 240, 0.5)',
+    borderRadius: '3px',
+    position: 'relative',
+    overflow: 'hidden',
+    minWidth: '120px',
+  },
+  progressLineFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: '100%',
+    width: '0%',
+    background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+    transition: 'width 0.5s ease-in-out',
+    boxShadow: '0 0 10px rgba(102, 126, 234, 0.5)',
+  },
+  progressLineFilled: {
+    width: '100%',
+  },
+  stepContent: {
+    animation: 'fadeIn 0.5s ease-in',
+  },
 };
 
 export default EventCreate;

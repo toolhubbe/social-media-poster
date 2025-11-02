@@ -1,11 +1,11 @@
 /**
- * Event Edit Page
+ * Event Edit Page - MODERN VERSION
  * 
  * Bestandslocatie: frontend/src/pages/events/EventEdit.jsx
- * Volledige pad: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/events/EventEdit.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/events/EventEdit.jsx
  * 
- * Edit pagina voor bestaand event
- * Pre-populeerd met huidige event data
+ * ✅ MODERNIZED: Glassmorphism forms, gradient styling, modern inputs
+ * ✅ FUNCTIONALITEIT: 100% behouden - alleen styling aangepast
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,7 +19,6 @@ const EventEdit = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   
-  // Form state
   const [formData, setFormData] = useState({
     event_name: '',
     event_type: 'corporate',
@@ -40,7 +39,6 @@ const EventEdit = () => {
       const response = await api.get(`/events/${eventId}`);
       const event = response.data;
       
-      // Populate form with existing data
       setFormData({
         event_name: event.event_name || '',
         event_type: event.event_type || 'corporate',
@@ -69,7 +67,6 @@ const EventEdit = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
     if (!formData.event_name.trim()) {
       alert('Event naam is verplicht');
       return;
@@ -85,7 +82,6 @@ const EventEdit = () => {
       
       await api.put(`/events/${eventId}`, formData);
       
-      // Success - navigate back to detail
       navigate(`/events/${eventId}`, {
         state: { message: 'Event succesvol bijgewerkt!' }
       });
@@ -99,10 +95,12 @@ const EventEdit = () => {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner}></div>
-          <p style={styles.loadingText}>Event laden...</p>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.loadingCard}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Event laden...</p>
+          </div>
         </div>
       </div>
     );
@@ -110,368 +108,458 @@ const EventEdit = () => {
 
   if (error && !formData.event_name) {
     return (
-      <div style={styles.container}>
-        <div style={styles.errorContainer}>
-          <div style={styles.errorIcon}>⚠️</div>
-          <h3 style={styles.errorTitle}>Fout bij laden</h3>
-          <p style={styles.errorText}>{error}</p>
-          <button onClick={() => navigate(`/events/${eventId}`)} style={styles.backButton}>
-            Terug naar event
-          </button>
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <div style={styles.errorCard}>
+            <div style={styles.errorIcon}>⚠️</div>
+            <h3 style={styles.errorTitle}>Fout bij laden</h3>
+            <p style={styles.errorText}>{error}</p>
+            <button onClick={() => navigate(`/events/${eventId}`)} style={styles.backButton}>
+              Terug naar event
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <button 
-          onClick={() => navigate(`/events/${eventId}`)}
-          style={styles.backButton}
-        >
-          ← Terug naar Event
-        </button>
-        <h1 style={styles.title}>Event Bewerken</h1>
-      </div>
-
-      {/* Form */}
-      <div style={styles.content}>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          {error && (
-            <div style={styles.errorBox}>
-              <span style={styles.errorIcon}>⚠️</span>
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Basic Info Section */}
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📋 Basis Informatie</h2>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>
-                Event Naam *
-              </label>
-              <input
-                type="text"
-                name="event_name"
-                value={formData.event_name}
-                onChange={handleChange}
-                placeholder="Bijv. Bedrijfsfeest 2025"
-                required
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.formRow}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Event Type *
-                </label>
-                <select
-                  name="event_type"
-                  value={formData.event_type}
-                  onChange={handleChange}
-                  required
-                  style={styles.select}
-                >
-                  <option value="corporate">🏢 Zakelijk</option>
-                  <option value="wedding">💍 Bruiloft</option>
-                  <option value="birthday">🎂 Verjaardag</option>
-                  <option value="anniversary">🎉 Jubileum</option>
-                  <option value="conference">🎤 Conferentie</option>
-                  <option value="party">🎊 Feest</option>
-                  <option value="other">📌 Anders</option>
-                </select>
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Event Datum *
-                </label>
-                <input
-                  type="date"
-                  name="event_date"
-                  value={formData.event_date}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Status *
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  required
-                  style={styles.select}
-                >
-                  <option value="draft">Concept</option>
-                  <option value="planned">Gepland</option>
-                  <option value="active">Actief</option>
-                  <option value="completed">Afgerond</option>
-                  <option value="cancelled">Geannuleerd</option>
-                </select>
-              </div>
-            </div>
+    <div style={styles.pageContainer}>
+      <div style={styles.container}>
+        <div style={styles.formCard}>
+          {/* Header */}
+          <div style={styles.header}>
+            <div style={styles.headerIcon}>✏️</div>
+            <h2 style={styles.title}>Event Bewerken</h2>
+            <p style={styles.subtitle}>
+              Wijzig de gegevens van het event
+            </p>
           </div>
 
-          {/* Location Section */}
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📍 Locatie</h2>
-            
-            <div style={styles.formRow}>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            {error && (
+              <div style={styles.errorAlert}>
+                <span style={styles.alertIcon}>⚠️</span>
+                <span style={styles.errorText}>{error}</span>
+              </div>
+            )}
+
+            {/* Basic Info Section */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>📋</span>
+                Basis Informatie
+              </h2>
+              
               <div style={styles.formGroup}>
                 <label style={styles.label}>
-                  Stad
+                  Event Naam *
                 </label>
                 <input
                   type="text"
-                  name="location_city"
-                  value={formData.location_city}
+                  name="event_name"
+                  value={formData.event_name}
                   onChange={handleChange}
-                  placeholder="Bijv. Genk"
+                  placeholder="Bijv. Bedrijfsfeest 2025"
+                  required
                   style={styles.input}
                 />
               </div>
 
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Event Type *
+                  </label>
+                  <select
+                    name="event_type"
+                    value={formData.event_type}
+                    onChange={handleChange}
+                    required
+                    style={styles.select}
+                  >
+                    <option value="corporate">🏢 Zakelijk</option>
+                    <option value="wedding">💍 Bruiloft</option>
+                    <option value="birthday">🎂 Verjaardag</option>
+                    <option value="anniversary">🎉 Jubileum</option>
+                    <option value="conference">🎤 Conferentie</option>
+                    <option value="party">🎊 Feest</option>
+                    <option value="other">📌 Anders</option>
+                  </select>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Event Datum *
+                  </label>
+                  <input
+                    type="date"
+                    name="event_date"
+                    value={formData.event_date}
+                    onChange={handleChange}
+                    required
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Status *
+                  </label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    required
+                    style={styles.select}
+                  >
+                    <option value="draft">Concept</option>
+                    <option value="planned">Gepland</option>
+                    <option value="active">Actief</option>
+                    <option value="completed">Afgerond</option>
+                    <option value="cancelled">Geannuleerd</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Location Section */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>📍</span>
+                Locatie
+              </h2>
+              
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Stad
+                  </label>
+                  <input
+                    type="text"
+                    name="location_city"
+                    value={formData.location_city}
+                    onChange={handleChange}
+                    placeholder="Bijv. Genk"
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                    Locatie/Venue
+                  </label>
+                  <input
+                    type="text"
+                    name="location_venue"
+                    value={formData.location_venue}
+                    onChange={handleChange}
+                    placeholder="Bijv. Hotel De Stadsherberg"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Description Section */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>📝</span>
+                Beschrijving
+              </h2>
+              
               <div style={styles.formGroup}>
                 <label style={styles.label}>
-                  Locatie/Venue
+                  Omschrijving
                 </label>
-                <input
-                  type="text"
-                  name="location_venue"
-                  value={formData.location_venue}
+                <textarea
+                  name="description"
+                  value={formData.description}
                   onChange={handleChange}
-                  placeholder="Bijv. Hotel De Stadsherberg"
-                  style={styles.input}
+                  placeholder="Extra informatie over dit event..."
+                  rows="5"
+                  style={styles.textarea}
                 />
               </div>
             </div>
-          </div>
 
-          {/* Description Section */}
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📝 Beschrijving</h2>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>
-                Omschrijving
-              </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder="Extra informatie over dit event..."
-                rows="5"
-                style={styles.textarea}
-              />
+            {/* Action Buttons */}
+            <div style={styles.actions}>
+              <button
+                type="button"
+                onClick={() => navigate(`/events/${eventId}`)}
+                style={styles.cancelButton}
+                disabled={saving}
+              >
+                Annuleren
+              </button>
+              <button
+                type="submit"
+                style={styles.submitButton}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <span style={styles.spinnerSmall}></span>
+                    <span>Opslaan...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✓</span>
+                    <span>Wijzigingen Opslaan</span>
+                  </>
+                )}
+              </button>
             </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div style={styles.actions}>
-            <button
-              type="button"
-              onClick={() => navigate(`/events/${eventId}`)}
-              style={styles.cancelButton}
-              disabled={saving}
-            >
-              Annuleren
-            </button>
-            <button
-              type="submit"
-              style={styles.submitButton}
-              disabled={saving}
-            >
-              {saving ? 'Opslaan...' : '💾 Opslaan'}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        
+        input:focus, textarea:focus, select:focus {
+          border-color: #667eea !important;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+        }
+      `}</style>
     </div>
   );
 };
 
 const styles = {
-  container: {
+  pageContainer: {
     minHeight: '100vh',
-    backgroundColor: '#f5f7fa',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '40px 20px',
+  },
+  container: {
+    maxWidth: '1000px',
+    margin: '0 auto',
+  },
+  formCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.2)',
+    overflow: 'hidden',
   },
   header: {
-    backgroundColor: 'white',
-    borderBottom: '2px solid #e0e0e0',
-    padding: '1.5rem 2rem',
-    display: 'flex',
-    gap: '1rem',
-    alignItems: 'center',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
+    padding: '48px 40px',
+    textAlign: 'center',
   },
-  backButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.95rem',
-    color: '#666',
-    transition: 'all 0.2s',
+  headerIcon: {
+    fontSize: '48px',
+    marginBottom: '16px',
+    animation: 'pulse 2s ease-in-out infinite',
   },
   title: {
-    margin: 0,
-    fontSize: '1.75rem',
-    fontWeight: '700',
-    color: '#333',
+    margin: '0 0 12px 0',
+    fontSize: '42px',
+    fontWeight: '800',
   },
-  content: {
-    maxWidth: '900px',
-    margin: '0 auto',
-    padding: '2rem',
+  subtitle: {
+    margin: 0,
+    fontSize: '18px',
+    opacity: 0.95,
+    fontWeight: '500',
   },
   form: {
+    padding: '40px',
+  },
+  errorAlert: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '2rem',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '16px 24px',
+    background: 'rgba(253, 121, 168, 0.1)',
+    border: '2px solid #fd79a8',
+    borderRadius: '16px',
+    marginBottom: '32px',
+    boxShadow: '0 4px 15px rgba(253, 121, 168, 0.2)',
+  },
+  alertIcon: {
+    fontSize: '24px',
+  },
+  errorText: {
+    color: '#e84393',
+    fontWeight: '600',
+    fontSize: '15px',
   },
   section: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '2rem',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+    marginBottom: '32px',
+    paddingBottom: '32px',
+    borderBottom: '2px solid rgba(226, 232, 240, 0.5)',
   },
   sectionTitle: {
-    margin: '0 0 1.5rem 0',
-    fontSize: '1.25rem',
-    fontWeight: '600',
-    color: '#333',
+    margin: '0 0 24px 0',
+    fontSize: '22px',
+    fontWeight: '700',
+    color: '#1e293b',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  sectionIcon: {
+    fontSize: '24px',
   },
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
+    gap: '8px',
     flex: 1,
+    marginBottom: '16px',
   },
   formRow: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '1rem',
+    gap: '16px',
   },
   label: {
-    fontSize: '0.95rem',
-    fontWeight: '600',
-    color: '#333',
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
   input: {
-    padding: '0.875rem',
+    padding: '14px 16px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    transition: 'all 0.2s',
+    borderRadius: '12px',
+    fontSize: '15px',
+    transition: 'all 0.2s ease',
     outline: 'none',
+    fontFamily: 'inherit',
   },
   select: {
-    padding: '0.875rem',
+    padding: '14px 16px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
+    borderRadius: '12px',
+    fontSize: '15px',
     backgroundColor: 'white',
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
     outline: 'none',
+    fontFamily: 'inherit',
   },
   textarea: {
-    padding: '0.875rem',
+    padding: '14px 16px',
     border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '1rem',
+    borderRadius: '12px',
+    fontSize: '15px',
     fontFamily: 'inherit',
     resize: 'vertical',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
     outline: 'none',
+    minHeight: '140px',
+    lineHeight: '1.6',
   },
   actions: {
     display: 'flex',
     justifyContent: 'flex-end',
-    gap: '1rem',
-    paddingTop: '1rem',
+    gap: '16px',
+    paddingTop: '32px',
   },
   cancelButton: {
-    padding: '0.875rem 1.5rem',
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '8px',
+    padding: '14px 28px',
+    background: 'rgba(226, 232, 240, 0.5)',
+    backdropFilter: 'blur(10px)',
+    border: '2px solid rgba(226, 232, 240, 0.8)',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
+    fontSize: '16px',
     fontWeight: '600',
-    color: '#666',
-    transition: 'all 0.2s',
+    color: '#475569',
+    transition: 'all 0.3s ease',
   },
   submitButton: {
-    padding: '0.875rem 1.5rem',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '14px 32px',
+    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: '1rem',
-    fontWeight: '600',
-    transition: 'all 0.2s',
-  },
-  errorBox: {
+    fontSize: '16px',
+    fontWeight: '700',
+    transition: 'all 0.3s ease',
     display: 'flex',
-    gap: '0.75rem',
-    padding: '1rem',
-    backgroundColor: '#fee',
-    border: '2px solid #fcc',
-    borderRadius: '8px',
-    color: '#c33',
     alignItems: 'center',
+    gap: '10px',
+    boxShadow: '0 4px 15px rgba(67, 233, 123, 0.3)',
   },
-  loadingContainer: {
+  spinnerSmall: {
+    width: '18px',
+    height: '18px',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    borderTopColor: 'white',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+    display: 'inline-block',
+  },
+  loadingCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    padding: '60px 40px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: '60vh',
-    gap: '1rem',
+    gap: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid #f3f3f3',
-    borderTop: '4px solid #667eea',
+    width: '60px',
+    height: '60px',
+    border: '6px solid rgba(255, 255, 255, 0.3)',
+    borderTop: '6px solid #667eea',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   loadingText: {
-    color: '#666',
-    fontSize: '1.1rem',
+    color: '#64748b',
+    fontSize: '18px',
+    fontWeight: '600',
+    margin: 0,
   },
-  errorContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '60vh',
-    gap: '1rem',
+  errorCard: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '24px',
+    textAlign: 'center',
+    padding: '60px 40px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   },
   errorIcon: {
-    fontSize: '3rem',
+    fontSize: '64px',
+    marginBottom: '20px',
   },
   errorTitle: {
-    margin: 0,
-    fontSize: '1.5rem',
-    color: '#333',
+    fontSize: '28px',
+    color: '#e84393',
+    marginBottom: '12px',
+    fontWeight: '800',
   },
-  errorText: {
-    margin: 0,
-    color: '#666',
+  backButton: {
+    padding: '14px 28px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '700',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+    marginTop: '24px',
   },
 };
 
