@@ -9,7 +9,6 @@ FastAPI routes voor event management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
 ✅ WORKSPACE ISOLATION: Users zien alleen events van hun workspace
 ✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
-✅ FIXED: EventListResponse now uses correct field names
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -109,11 +108,11 @@ def create_event(
     else:
         folder_name = event.folder_name
     
-    # Create event object
+    # Create event object - ✅ FIXED: changed created_by_user_id to created_by
     db_event = Event(
         customer_id=event.customer_id,
         workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-        created_by_user_id=current_user.user_id,  # ✅ Track creator
+        created_by=current_user.user_id,  # ✅ FIXED: correct column name
         event_name=event.event_name,
         event_type=event.event_type,
         event_date=event.event_date,
@@ -212,16 +211,11 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
-    # ✅ FIXED: Calculate page numbers and use correct field names for EventListResponse
-    page = (skip // limit) + 1 if limit > 0 else 1
-    pages = (total + limit - 1) // limit if limit > 0 else 1
-    
     return EventListResponse(
-        items=events,      # ✅ Changed from 'events' to 'items'
+        events=events,
         total=total,
-        page=page,         # ✅ Changed from 'skip' to 'page'
-        page_size=limit,   # ✅ Changed from 'limit' to 'page_size'
-        pages=pages        # ✅ Added 'pages' field
+        skip=skip,
+        limit=limit
     )
 
 
