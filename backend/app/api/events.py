@@ -211,11 +211,16 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
+    # Calculate page number and total pages
+    page = (skip // limit) + 1 if limit > 0 else 1
+    pages = (total + limit - 1) // limit if limit > 0 else 1
+    
     return EventListResponse(
-        events=events,
+        items=events,  # ✅ FIXED: was 'events', now 'items'
         total=total,
-        skip=skip,
-        limit=limit
+        page=page,  # ✅ FIXED: calculated from skip
+        page_size=limit,  # ✅ FIXED: was 'limit', now 'page_size'
+        pages=pages  # ✅ FIXED: calculated total pages
     )
 
 

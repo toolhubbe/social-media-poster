@@ -1,6 +1,7 @@
 """
 Event Schemas - Pydantic models voor API validation en serialization
-Bestandslocatie: social_media_poster_backend/app/schemas/event.py
+Bestandslocatie: backend/app/schemas/event.py
+Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/schemas/event.py
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -114,7 +115,7 @@ class EventResponse(EventBase):
     event_id: UUID
     customer_id: UUID
     workspace_id: Optional[UUID] = None  # ✅ NEW
-    created_by_user_id: Optional[UUID] = None  # ✅ NEW
+    created_by: Optional[UUID] = None  # ✅ FIXED: was created_by_user_id, now matches model
     google_drive_folder_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
