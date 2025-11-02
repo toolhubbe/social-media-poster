@@ -6,9 +6,9 @@ Bestandslocatie: backend/app/schemas/customer.py
 Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/schemas/customer.py
 
 Pydantic schemas voor request/response validation
-✅ FIXED: Updated created_by field to match database structure
-✅ NEW: Added address fields (street, house_number, postal_code, city, country)
-✅ NEW: Added notes field
+✅ FIXED: Added missing created_by_name field to CustomerResponse
+✅ EXISTING: Address fields (street, house_number, postal_code, city, country)
+✅ EXISTING: Notes field
 """
 
 from pydantic import BaseModel, EmailStr, Field, validator
@@ -95,10 +95,11 @@ class CustomerUpdate(BaseModel):
 
 class CustomerResponse(CustomerBase):
     """Schema for customer response
-    ✅ UPDATED: Matches workspace-based architecture with address fields"""
+    ✅ FIXED: Added missing created_by_name field to match database model"""
     customer_id: UUID
     workspace_id: UUID  # ✅ Required - customer always belongs to workspace
-    created_by: Optional[UUID] = None  # ✅ User who created this customer
+    created_by: Optional[UUID] = None  # ✅ User who created this customer (UUID)
+    created_by_name: str  # ✅ ADDED: Legacy string field from database
     google_drive_folder_id: Optional[str] = None
     google_sheet_row_number: Optional[int] = None
     status: str

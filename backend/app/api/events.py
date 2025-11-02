@@ -175,7 +175,7 @@ async def create_event(
         db_event = Event(
             customer_id=event.customer_id,
             workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-            created_by_user_id=current_user.user_id,  # ✅ Track creator
+            created_by=current_user.user_id,  # ✅ Track creator
             event_name=event.event_name,
             event_type=event.event_type,
             event_date=event.event_date,
