@@ -2,27 +2,39 @@
  * Event Detail Page
  * 
  * Bestandslocatie: frontend/src/pages/events/EventDetail.jsx
- * Volledige pad: C:/Users/DASAP/Documents/SAAS - SOFTWARE/N8N software building/SOCIAL MEDIA POSTER TOOL/social-media-poster/frontend/src/pages/events/EventDetail.jsx
+ * Volledige pad: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_frontend/src/pages/events/EventDetail.jsx
  * 
  * Detail pagina voor specifiek event
  * Toont alle event informatie + Google Drive folder link
+ * ✅ UPDATED: Action buttons now functional (02-11-2025)
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 
 const EventDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
   const [driveInfo, setDriveInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
     fetchEventDetails();
-  }, [eventId]);
+    
+    // Show success message if redirected from edit
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the state
+      window.history.replaceState({}, document.title);
+      // Auto-hide after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    }
+  }, [eventId, location.state]);
 
   const fetchEventDetails = async () => {
     try {
@@ -46,6 +58,41 @@ const EventDetail = () => {
       setError('Kon event niet laden. Probeer het opnieuw.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEdit = () => {
+    navigate(`/events/${eventId}/edit`);
+  };
+
+  const handleUploadPhotos = () => {
+    // TODO: Implement photo upload functionality
+    alert('📸 Foto upload functionaliteit komt binnenkort!');
+  };
+
+  const handleCreatePost = () => {
+    // TODO: Implement post creation functionality
+    alert('📝 Post aanmaken functionaliteit komt binnenkort!');
+  };
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+      `Weet je zeker dat je "${event.event_name}" wilt verwijderen?\n\n` +
+      'Dit kan niet ongedaan gemaakt worden!'
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/events/${eventId}`);
+      
+      // Navigate back to events list with success message
+      navigate('/events', {
+        state: { message: 'Event succesvol verwijderd' }
+      });
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+      alert('Fout bij verwijderen. Probeer het opnieuw.');
     }
   };
 
@@ -132,6 +179,20 @@ const EventDetail = () => {
 
   return (
     <div style={styles.container}>
+      {/* Success Message */}
+      {successMessage && (
+        <div style={styles.successBanner}>
+          <span style={styles.successIcon}>✅</span>
+          <span>{successMessage}</span>
+          <button 
+            onClick={() => setSuccessMessage(null)}
+            style={styles.closeButton}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={styles.header}>
         <button 
@@ -235,14 +296,6 @@ const EventDetail = () => {
                 </div>
               )}
             </div>
-
-            {/* Description */}
-            {event.description && (
-              <div style={styles.infoCard}>
-                <h3 style={styles.cardTitle}>📝 Beschrijving</h3>
-                <p style={styles.description}>{event.description}</p>
-              </div>
-            )}
           </div>
 
           {/* Right Column - Actions & Drive */}
@@ -251,16 +304,28 @@ const EventDetail = () => {
             <div style={styles.infoCard}>
               <h3 style={styles.cardTitle}>⚡ Acties</h3>
               <div style={styles.actionsGrid}>
-                <button style={styles.actionButton}>
+                <button 
+                  onClick={handleEdit}
+                  style={styles.actionButton}
+                >
                   ✏️ Bewerk Event
                 </button>
-                <button style={styles.actionButton}>
+                <button 
+                  onClick={handleUploadPhotos}
+                  style={styles.actionButton}
+                >
                   📸 Upload Foto's
                 </button>
-                <button style={styles.actionButton}>
+                <button 
+                  onClick={handleCreatePost}
+                  style={styles.actionButton}
+                >
                   📝 Maak Post
                 </button>
-                <button style={{...styles.actionButton, ...styles.dangerButton}}>
+                <button 
+                  onClick={handleDelete}
+                  style={{...styles.actionButton, ...styles.dangerButton}}
+                >
                   🗑️ Verwijder
                 </button>
               </div>
@@ -294,12 +359,12 @@ const EventDetail = () => {
               <h3 style={styles.cardTitle}>📊 Statistieken</h3>
               <div style={styles.statsGrid}>
                 <div style={styles.statItem}>
-                  <span style={styles.statValue}>0</span>
-                  <span style={styles.statLabel}>Foto's</span>
+                  <div style={styles.statValue}>0</div>
+                  <div style={styles.statLabel}>Foto's</div>
                 </div>
                 <div style={styles.statItem}>
-                  <span style={styles.statValue}>0</span>
-                  <span style={styles.statLabel}>Posts</span>
+                  <div style={styles.statValue}>0</div>
+                  <div style={styles.statLabel}>Posts</div>
                 </div>
               </div>
             </div>
@@ -320,6 +385,34 @@ const styles = {
   container: {
     minHeight: '100vh',
     backgroundColor: '#f5f7fa',
+  },
+  successBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '1rem 2rem',
+    backgroundColor: '#e8f5e9',
+    borderBottom: '2px solid #4caf50',
+    color: '#2e7d32',
+    fontSize: '1rem',
+    fontWeight: '500',
+  },
+  successIcon: {
+    fontSize: '1.25rem',
+  },
+  closeButton: {
+    marginLeft: 'auto',
+    background: 'none',
+    border: 'none',
+    fontSize: '1.5rem',
+    cursor: 'pointer',
+    color: '#2e7d32',
+    padding: '0',
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     backgroundColor: 'white',
@@ -445,6 +538,7 @@ const styles = {
     fontSize: '0.9rem',
     color: '#667eea',
     fontWeight: '500',
+    transition: 'all 0.2s',
   },
   detailsGrid: {
     display: 'grid',
@@ -591,7 +685,7 @@ const styles = {
   },
   retryButton: {
     padding: '0.75rem 1.5rem',
-    backgroundColor: '#c33',
+    backgroundColor: '#667eea',
     color: 'white',
     border: 'none',
     borderRadius: '6px',

@@ -88,17 +88,17 @@ async def create_customer(
     google_drive_folder_id = None
     
     # ✨ STEP 1: Create Google Drive folder FIRST (if Drive setup complete)
-    if workspace.drive_setup_complete and workspace.drive_customers_folder_id:
+    if workspace.drive_setup_complete and workspace.drive_folder_id:
         try:
             print(f"\n📁 Creating Google Drive folder for customer: {folder_name}")
             
             # Initialize Drive service with user's OAuth token
             drive_service = DriveService(current_user.google_access_token)
             
-            # Create customer folder inside workspace's Customers folder
+            # Create customer folder inside workspace's main folder
             folder_result = await drive_service.create_folder(
                 folder_name=folder_name,
-                parent_id=workspace.drive_customers_folder_id
+                parent_id=workspace.drive_folder_id
             )
             
             google_drive_folder_id = folder_result['id']

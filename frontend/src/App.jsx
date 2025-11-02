@@ -5,6 +5,7 @@
  * 
  * Main application component with routing
  * ✅ UPDATED: CustomerEdit route added (01-11-2025)
+ * ✅ UPDATED: EventEdit route added (02-11-2025)
  */
 
 import React from 'react';
@@ -25,12 +26,13 @@ import DriveSetup from './components/DriveSetup';
 import CustomerList from './pages/customers/CustomerList';
 import CustomerCreate from './pages/customers/CustomerCreate';
 import CustomerDetail from './pages/customers/CustomerDetail';
-import CustomerEdit from './pages/customers/CustomerEdit';  // ✨ NEW
+import CustomerEdit from './pages/customers/CustomerEdit';
 
-// ✅ Event pages
+// ✅ UPDATED: Event pages
 import EventList from './pages/events/EventList';
 import EventCreate from './pages/events/EventCreate';
 import EventDetail from './pages/events/EventDetail';
+import EventEdit from './pages/events/EventEdit';  // ✨ NEW
 
 function App() {
   return (
@@ -86,7 +88,7 @@ function App() {
             }
           />
           
-          {/* ✨ NEW: Customer edit route - MOET VOOR :customerId staan! */}
+          {/* ✨ Customer edit route - MOET VOOR :customerId staan! */}
           <Route
             path="/customers/:customerId/edit"
             element={
@@ -127,6 +129,17 @@ function App() {
             }
           />
           
+          {/* ✨ NEW: Event edit route - MOET VOOR :eventId staan! */}
+          <Route
+            path="/events/:eventId/edit"
+            element={
+              <ProtectedRoute>
+                <EventEdit />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Event detail route */}
           <Route
             path="/events/:eventId"
             element={

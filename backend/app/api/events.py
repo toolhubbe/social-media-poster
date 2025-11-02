@@ -107,7 +107,7 @@ async def create_event(
     google_drive_folder_id = None
     
     # ✨ STEP 1: Create Google Drive nested folder structure FIRST (if Drive setup complete)
-    if workspace.drive_setup_complete and workspace.drive_events_folder_id:
+    if workspace.drive_setup_complete and workspace.drive_folder_id:
         try:
             print(f"\n📁 Creating nested Google Drive folders for event: {folder_name}")
             
@@ -124,18 +124,18 @@ async def create_event(
             
             print(f"   Customer subfolder: {customer_folder_name}")
             
-            # Check if customer subfolder already exists in Events folder
+            # Check if customer subfolder already exists in main folder
             customer_events_folder = await drive_service.find_folder_by_name(
                 folder_name=customer_folder_name,
-                parent_id=workspace.drive_events_folder_id
+                parent_id=workspace.drive_folder_id
             )
             
             if not customer_events_folder:
-                # Create customer subfolder in Events folder
+                # Create customer subfolder in main folder
                 print(f"   Creating customer subfolder: {customer_folder_name}")
                 customer_events_folder = await drive_service.create_folder(
                     folder_name=customer_folder_name,
-                    parent_id=workspace.drive_events_folder_id
+                    parent_id=workspace.drive_folder_id
                 )
             else:
                 print(f"   Using existing customer subfolder: {customer_folder_name}")

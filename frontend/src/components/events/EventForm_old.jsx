@@ -64,7 +64,8 @@ const EventForm = ({ customer, onBack, onSuccess }) => {
 
       console.log('Event created successfully:', response.data);
       
-      // Success! Call parent callback to handle navigation
+      // Show success message briefly before redirect
+      alert('✅ Event succesvol aangemaakt!');
       onSuccess(response.data);
     } catch (err) {
       console.error('Failed to create event:', err);
