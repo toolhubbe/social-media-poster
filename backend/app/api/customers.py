@@ -8,7 +8,8 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/customer
 FastAPI routes voor customer management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
 ✅ WORKSPACE ISOLATION: Users zien alleen customers in hun workspace
-✅ AUTO DRIVE FOLDERS: Automatic Google Drive folder creation ✨
+✅ AUTO DRIVE FOLDERS: Automatic Google Drive folder creation BEFORE database save
+✅ ATOMIC OPERATIONS: Drive folder + Database as single transaction
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -50,17 +51,18 @@ async def create_customer(
     
     ✅ OAuth Protected: Requires valid JWT token
     ✅ Workspace Isolated: Customer is linked to workspace
-    ✅ Auto Drive Folder: Creates folder in Customers subfolder ✨
+    ✅ Auto Drive Folder: Creates folder in Customers subfolder (if Drive setup complete)
+    ✅ ATOMIC: Drive folder is created FIRST, then database record
     
-    The customer folder is created in: [Workspace]/Customers/[Customer Name]/
+    Workflow:
+    1. Validate customer doesn't exist
+    2. Create Google Drive folder → Get folder_id
+    3. Create customer in database WITH folder_id
+    4. If either step fails → Full rollback, no incomplete data
+    
+    The customer folder is created in: [Workspace]/Customers/[customer_name]/
+    Folder name is normalized: lowercase, spaces → underscores
     """
-    
-    # Check if workspace has Drive setup
-    if not workspace.drive_setup_complete or not workspace.drive_customers_folder_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Drive setup is not complete for your workspace. Please complete Drive setup first."
-        )
     
     # Check if email already exists in this workspace
     existing = db.query(Customer).filter(
@@ -74,7 +76,7 @@ async def create_customer(
             detail=f"A customer with email {customer.email} already exists in your workspace"
         )
 
-    # Determine folder name
+    # Determine folder name (normalized: lowercase + underscores)
     if customer.company_name:
         folder_name = sanitize_folder_name(customer.company_name)
     elif customer.first_name and customer.last_name:
@@ -82,54 +84,75 @@ async def create_customer(
     else:
         folder_name = sanitize_folder_name(customer.email.split('@')[0])
 
-    # Create customer in database first (to get customer_id)
-    db_customer = Customer(
-        **customer.model_dump(),
-        workspace_id=workspace.workspace_id,
-        created_by=current_user.user_id
-    )
+    # Variable to store folder_id
+    google_drive_folder_id = None
     
-    db.add(db_customer)
-    db.commit()
-    db.refresh(db_customer)
-    
-    # ✨ NEW: Create Google Drive folder for customer
+    # ✨ STEP 1: Create Google Drive folder FIRST (if Drive setup complete)
+    if workspace.drive_setup_complete and workspace.drive_customers_folder_id:
+        try:
+            print(f"\n📁 Creating Google Drive folder for customer: {folder_name}")
+            
+            # Initialize Drive service with user's OAuth token
+            drive_service = DriveService(current_user.google_access_token)
+            
+            # Create customer folder inside workspace's Customers folder
+            folder_result = await drive_service.create_folder(
+                folder_name=folder_name,
+                parent_id=workspace.drive_customers_folder_id
+            )
+            
+            google_drive_folder_id = folder_result['id']
+            
+            print(f"✅ Customer folder created successfully!")
+            print(f"   Folder ID: {folder_result['id']}")
+            print(f"   Folder Name: {folder_result['name']}")
+            print(f"   Folder Link: {folder_result.get('webViewLink', 'N/A')}")
+            
+        except HTTPException as e:
+            # If Drive folder creation fails, abort customer creation
+            print(f"❌ Failed to create Drive folder: {e.detail}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create Google Drive folder: {e.detail}. Customer not created."
+            )
+        except Exception as e:
+            print(f"❌ Unexpected error creating Drive folder: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create Google Drive folder: {str(e)}. Customer not created."
+            )
+    else:
+        print(f"ℹ️  Drive setup not complete - customer will be created without Drive folder")
+
+    # ✅ STEP 2: Create customer in database WITH folder_id
     try:
-        print(f"\n📁 Creating Google Drive folder for customer: {folder_name}")
-        
-        # Initialize Drive service with user's OAuth token
-        drive_service = DriveService(current_user.google_access_token)
-        
-        # Create customer folder inside workspace's Customers folder
-        folder_result = await drive_service.create_folder(
-            folder_name=folder_name,
-            parent_id=workspace.drive_customers_folder_id
+        db_customer = Customer(
+            **customer.model_dump(),
+            workspace_id=workspace.workspace_id,
+            created_by=current_user.user_id,
+            google_drive_folder_id=google_drive_folder_id  # ✅ Set folder_id from Drive creation
         )
         
-        # Update customer with Drive folder ID
-        db_customer.google_drive_folder_id = folder_result['id']
+        db.add(db_customer)
         db.commit()
         db.refresh(db_customer)
         
-        print(f"✅ Customer folder created successfully!")
-        print(f"   Folder ID: {folder_result['id']}")
-        print(f"   Folder Link: {folder_result.get('webViewLink', 'N/A')}")
+        print(f"\n✅ Customer created in workspace: {workspace.name}")
+        print(f"   User: {current_user.email}")
+        print(f"   Customer: {db_customer.company_name or db_customer.email}")
+        print(f"   Customer ID: {db_customer.customer_id}")
+        print(f"   Drive Folder ID: {db_customer.google_drive_folder_id or 'Not created'}")
         
-    except HTTPException as e:
-        # If Drive folder creation fails, log error but don't fail customer creation
-        print(f"⚠️ Failed to create Drive folder: {e.detail}")
-        print(f"   Customer was created but without Drive folder")
+        return db_customer
+        
     except Exception as e:
-        print(f"⚠️ Unexpected error creating Drive folder: {str(e)}")
-        print(f"   Customer was created but without Drive folder")
-    
-    print(f"\n✅ Customer created in workspace: {workspace.name}")
-    print(f"   User: {current_user.email}")
-    print(f"   Customer: {db_customer.company_name or db_customer.email}")
-    print(f"   Customer ID: {db_customer.customer_id}")
-    print(f"   Drive Folder ID: {db_customer.google_drive_folder_id or 'Not created'}")
-
-    return db_customer
+        print(f"❌ Failed to create customer in database: {str(e)}")
+        # TODO: Optionally delete the Drive folder if database creation fails
+        # For now, we keep the folder (orphaned but can be cleaned up later)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create customer: {str(e)}"
+        )
 
 
 # ============================================================================

@@ -11,6 +11,7 @@ Handles all Google Drive API operations using user's OAuth token:
 
 ✅ USER OAUTH: All operations use user's Google OAuth access token
 ✅ NO SERVICE ACCOUNT: Direct integration with user's personal Drive
+✅ LOWERCASE FOLDERS: All folder names are normalized to lowercase with underscores
 """
 
 import httpx
@@ -399,17 +400,19 @@ def sanitize_folder_name(name: str) -> str:
     """
     Sanitize a name for use as a folder name
     
-    Removes special characters and replaces spaces with underscores
+    ✅ NORMALIZED: Lowercase, spaces → underscores, no special chars
     
     Args:
-        name: Original name
+        name: Original name (e.g. "Dasap Consulting BV")
     
     Returns:
-        Sanitized name safe for use as folder name
+        Sanitized name (e.g. "dasap_consulting_bv")
     
     Example:
         >>> sanitize_folder_name("John's Wedding 2024!")
-        'Johns_Wedding_2024'
+        'johns_wedding_2024'
+        >>> sanitize_folder_name("DASAP Consulting BV")
+        'dasap_consulting_bv'
     """
     # Remove leading/trailing whitespace
     name = name.strip()
@@ -417,11 +420,14 @@ def sanitize_folder_name(name: str) -> str:
     # Replace spaces with underscores
     name = name.replace(' ', '_')
     
+    # Convert to lowercase ✅ NEW
+    name = name.lower()
+    
     # Remove special characters (keep only alphanumeric and underscore)
     name = ''.join(c for c in name if c.isalnum() or c == '_')
     
     # Ensure it's not empty
     if not name:
-        name = "Untitled"
+        name = "untitled"
     
     return name

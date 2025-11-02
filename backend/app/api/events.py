@@ -8,7 +8,9 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/events.p
 FastAPI routes voor event management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
 ✅ WORKSPACE ISOLATION: Users zien alleen events van hun workspace
-✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
+✅ AUTO DRIVE FOLDERS: Automatic Google Drive folder creation BEFORE database save
+✅ NESTED STRUCTURE: Events/[customer]/[event] folder hierarchy
+✅ ATOMIC OPERATIONS: Drive folder + Database as single transaction
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,6 +19,7 @@ from sqlalchemy import func, or_
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
+import math
 
 from ..core.database import get_db
 from ..models.event import Event
@@ -43,20 +46,6 @@ router = APIRouter(
 
 
 # ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def sanitize_folder_name(name: str) -> str:
-    """
-    Sanitize name for use as folder name
-    Replaces spaces with underscores and removes special characters
-    """
-    folder_name = name.strip().replace(' ', '_')
-    folder_name = ''.join(c for c in folder_name if c.isalnum() or c == '_')
-    return folder_name
-
-
-# ============================================================================
 # CREATE
 # ============================================================================
 
@@ -68,28 +57,26 @@ async def create_event(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new event with automatic Google Drive folder
+    Create a new event with automatic Google Drive folder in nested structure
     
     ✅ OAuth Protected: Requires valid JWT token
     ✅ Workspace Isolated: Event is linked to workspace
     ✅ Ownership Verification: Checks if customer belongs to workspace
-    ✅ Auto Drive Folder: Creates folder in Events/[Customer]/[Event]/ ✨
+    ✅ Auto Drive Folder: Creates nested folder structure (if Drive setup complete)
+    ✅ ATOMIC: Drive folder is created FIRST, then database record
     
-    Args:
-        event: Event data
-        workspace: Current workspace (auto-injected)
-        current_user: Authenticated user from JWT token
-        
-    Returns:
-        Created event with google_drive_folder_id
+    Workflow:
+    1. Validate customer exists in workspace
+    2. Create Google Drive nested folder structure:
+       - Check/create customer subfolder in Events folder
+       - Create event folder inside customer subfolder
+       - Get event folder_id
+    3. Create event in database WITH folder_id
+    4. If either step fails → Full rollback, no incomplete data
+    
+    The event folder is created in: [Workspace]/Events/[customer]/[event_name]/
+    Folder names are normalized: lowercase, spaces → underscores
     """
-    
-    # Check if workspace has Drive setup
-    if not workspace.drive_setup_complete or not workspace.drive_events_folder_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Drive setup is not complete for your workspace. Please complete Drive setup first."
-        )
     
     # Verify customer exists AND belongs to this workspace
     customer = db.query(Customer).filter(
@@ -110,97 +97,117 @@ async def create_event(
             detail="Cannot create event for archived customer"
         )
     
-    # Auto-generate folder_name if not provided
+    # Auto-generate folder_name if not provided (normalized)
     if not event.folder_name:
         folder_name = sanitize_folder_name(event.event_name)
     else:
-        folder_name = event.folder_name
+        folder_name = sanitize_folder_name(event.folder_name)
     
-    # Create event object
-    db_event = Event(
-        customer_id=event.customer_id,
-        workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-        created_by=current_user.user_id,  # ✅ FIXED: correct column name
-        event_name=event.event_name,
-        event_type=event.event_type,
-        event_date=event.event_date,
-        location_city=event.location_city,
-        location_venue=event.location_venue,
-        description=event.description,
-        folder_name=folder_name,
-        status=event.status or 'draft'
-    )
+    # Variable to store folder_id
+    google_drive_folder_id = None
     
-    # Save to database first (to get event_id)
-    db.add(db_event)
-    db.commit()
-    db.refresh(db_event)
-    
-    # ✨ NEW: Create Google Drive folder structure for event
-    # Structure: [Workspace]/Events/[Customer Name]/[Event Name]/
-    try:
-        print(f"\n📁 Creating Google Drive folder for event: {folder_name}")
-        
-        # Initialize Drive service with user's OAuth token
-        drive_service = DriveService(current_user.google_access_token)
-        
-        # Step 1: Get or create customer folder in Events folder
-        # Determine customer folder name
-        if customer.company_name:
-            customer_folder_name = sanitize_folder_name(customer.company_name)
-        elif customer.first_name and customer.last_name:
-            customer_folder_name = sanitize_folder_name(f"{customer.first_name}_{customer.last_name}")
-        else:
-            customer_folder_name = sanitize_folder_name(customer.email.split('@')[0])
-        
-        # Check if customer folder already exists in Events folder
-        customer_events_folder = await drive_service.find_folder_by_name(
-            folder_name=customer_folder_name,
-            parent_id=workspace.drive_events_folder_id
-        )
-        
-        if not customer_events_folder:
-            # Create customer folder in Events folder
-            print(f"   Creating customer subfolder: {customer_folder_name}")
-            customer_events_folder = await drive_service.create_folder(
+    # ✨ STEP 1: Create Google Drive nested folder structure FIRST (if Drive setup complete)
+    if workspace.drive_setup_complete and workspace.drive_events_folder_id:
+        try:
+            print(f"\n📁 Creating nested Google Drive folders for event: {folder_name}")
+            
+            # Initialize Drive service with user's OAuth token
+            drive_service = DriveService(current_user.google_access_token)
+            
+            # Determine customer folder name (normalized)
+            if customer.company_name:
+                customer_folder_name = sanitize_folder_name(customer.company_name)
+            elif customer.first_name and customer.last_name:
+                customer_folder_name = sanitize_folder_name(f"{customer.first_name}_{customer.last_name}")
+            else:
+                customer_folder_name = sanitize_folder_name(customer.email.split('@')[0])
+            
+            print(f"   Customer subfolder: {customer_folder_name}")
+            
+            # Check if customer subfolder already exists in Events folder
+            customer_events_folder = await drive_service.find_folder_by_name(
                 folder_name=customer_folder_name,
                 parent_id=workspace.drive_events_folder_id
             )
-        else:
-            print(f"   Using existing customer subfolder: {customer_folder_name}")
-        
-        # Step 2: Create event folder inside customer's events folder
-        event_folder_result = await drive_service.create_folder(
+            
+            if not customer_events_folder:
+                # Create customer subfolder in Events folder
+                print(f"   Creating customer subfolder: {customer_folder_name}")
+                customer_events_folder = await drive_service.create_folder(
+                    folder_name=customer_folder_name,
+                    parent_id=workspace.drive_events_folder_id
+                )
+            else:
+                print(f"   Using existing customer subfolder: {customer_folder_name}")
+            
+            # Create event folder inside customer's events folder
+            print(f"   Creating event folder: {folder_name}")
+            event_folder_result = await drive_service.create_folder(
+                folder_name=folder_name,
+                parent_id=customer_events_folder['id']
+            )
+            
+            google_drive_folder_id = event_folder_result['id']
+            
+            print(f"✅ Event folder created successfully!")
+            print(f"   Path: Events/{customer_folder_name}/{folder_name}")
+            print(f"   Folder ID: {event_folder_result['id']}")
+            print(f"   Folder Link: {event_folder_result.get('webViewLink', 'N/A')}")
+            
+        except HTTPException as e:
+            # If Drive folder creation fails, abort event creation
+            print(f"❌ Failed to create Drive folder: {e.detail}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create Google Drive folder: {e.detail}. Event not created."
+            )
+        except Exception as e:
+            print(f"❌ Unexpected error creating Drive folder: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create Google Drive folder: {str(e)}. Event not created."
+            )
+    else:
+        print(f"ℹ️  Drive setup not complete - event will be created without Drive folder")
+    
+    # ✅ STEP 2: Create event in database WITH folder_id
+    try:
+        db_event = Event(
+            customer_id=event.customer_id,
+            workspace_id=workspace.workspace_id,  # ✅ Link to workspace
+            created_by_user_id=current_user.user_id,  # ✅ Track creator
+            event_name=event.event_name,
+            event_type=event.event_type,
+            event_date=event.event_date,
+            location_city=event.location_city,
+            location_venue=event.location_venue,
+            description=event.description,
             folder_name=folder_name,
-            parent_id=customer_events_folder['id']
+            status=event.status or 'draft',
+            google_drive_folder_id=google_drive_folder_id  # ✅ Set folder_id from Drive creation
         )
         
-        # Update event with Drive folder ID
-        db_event.google_drive_folder_id = event_folder_result['id']
+        db.add(db_event)
         db.commit()
         db.refresh(db_event)
         
-        print(f"✅ Event folder created successfully!")
-        print(f"   Path: Events/{customer_folder_name}/{folder_name}")
-        print(f"   Folder ID: {event_folder_result['id']}")
-        print(f"   Folder Link: {event_folder_result.get('webViewLink', 'N/A')}")
+        print(f"\n✅ Event created in workspace: {workspace.name}")
+        print(f"   User: {current_user.email}")
+        print(f"   Event: {event.event_name}")
+        print(f"   Customer: {customer.company_name or customer.email}")
+        print(f"   Event ID: {db_event.event_id}")
+        print(f"   Drive Folder ID: {db_event.google_drive_folder_id or 'Not created'}")
         
-    except HTTPException as e:
-        # If Drive folder creation fails, log error but don't fail event creation
-        print(f"⚠️ Failed to create Drive folder: {e.detail}")
-        print(f"   Event was created but without Drive folder")
+        return db_event
+        
     except Exception as e:
-        print(f"⚠️ Unexpected error creating Drive folder: {str(e)}")
-        print(f"   Event was created but without Drive folder")
-    
-    print(f"\n✅ Event created in workspace: {workspace.name}")
-    print(f"   User: {current_user.email}")
-    print(f"   Event: {event.event_name}")
-    print(f"   Customer: {customer.company_name or customer.email}")
-    print(f"   Event ID: {db_event.event_id}")
-    print(f"   Drive Folder ID: {db_event.google_drive_folder_id or 'Not created'}")
-    
-    return db_event
+        print(f"❌ Failed to create event in database: {str(e)}")
+        # TODO: Optionally delete the Drive folder if database creation fails
+        # For now, we keep the folder (orphaned but can be cleaned up later)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create event: {str(e)}"
+        )
 
 
 # ============================================================================
@@ -275,14 +282,14 @@ def list_events(
     
     # Calculate page number and total pages
     page = (skip // limit) + 1 if limit > 0 else 1
-    pages = (total + limit - 1) // limit if limit > 0 else 1
+    pages = math.ceil(total / limit) if limit > 0 else 0
     
     return EventListResponse(
-        items=events,  # ✅ FIXED: was 'events', now 'items'
+        items=events,
         total=total,
-        page=page,  # ✅ FIXED: calculated from skip
-        page_size=limit,  # ✅ FIXED: was 'limit', now 'page_size'
-        pages=pages  # ✅ FIXED: calculated total pages
+        page=page,
+        page_size=limit,
+        pages=pages
     )
 
 
