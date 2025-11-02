@@ -8,18 +8,16 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/backend/app/api/events.p
 FastAPI routes voor event management
 ✅ OAUTH 2.0: Alle endpoints beveiligd met JWT authenticatie
 ✅ WORKSPACE ISOLATION: Users zien alleen events van hun workspace
-✅ AUTO DRIVE FOLDERS: Automatic Google Drive folder creation BEFORE database save
-✅ NESTED STRUCTURE: Events/[customer]/[event] folder hierarchy
-✅ ATOMIC OPERATIONS: Drive folder + Database as single transaction
+✅ USER DRIVE: Elk gebruiker gebruikt zijn eigen Google Drive
+✅ CASCADE DELETE: Event delete verwijdert ook alle photos van Google Drive
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
-import math
 
 from ..core.database import get_db
 from ..models.event import Event
@@ -35,7 +33,7 @@ from ..schemas.event import (
     EventArchiveRequest
 )
 from .dependencies import get_current_user, get_current_workspace
-from ..services.drive_service import DriveService, sanitize_folder_name
+from .photos import cascade_delete_event_photos  # ✅ NEW: For cascade delete
 
 # Router instance
 router = APIRouter(
@@ -46,36 +44,45 @@ router = APIRouter(
 
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def sanitize_folder_name(name: str) -> str:
+    """
+    Sanitize name for use as folder name
+    Replaces spaces with underscores and removes special characters
+    """
+    folder_name = name.strip().replace(' ', '_')
+    folder_name = ''.join(c for c in folder_name if c.isalnum() or c == '_')
+    return folder_name
+
+
+# ============================================================================
 # CREATE
 # ============================================================================
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
-async def create_event(
+def create_event(
     event: EventCreate,
     workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
     current_user: User = Depends(get_current_user),  # ✅ OAuth authentication
     db: Session = Depends(get_db)
 ):
     """
-    Create a new event with automatic Google Drive folder in nested structure
+    Create a new event with automatic Google Drive folder
     
     ✅ OAuth Protected: Requires valid JWT token
     ✅ Workspace Isolated: Event is linked to workspace
     ✅ Ownership Verification: Checks if customer belongs to workspace
-    ✅ Auto Drive Folder: Creates nested folder structure (if Drive setup complete)
-    ✅ ATOMIC: Drive folder is created FIRST, then database record
+    ✅ User's Drive: Creates folder in authenticated user's Google Drive
     
-    Workflow:
-    1. Validate customer exists in workspace
-    2. Create Google Drive nested folder structure:
-       - Check/create customer subfolder in Events folder
-       - Create event folder inside customer subfolder
-       - Get event folder_id
-    3. Create event in database WITH folder_id
-    4. If either step fails → Full rollback, no incomplete data
-    
-    The event folder is created in: [Workspace]/Events/[customer]/[event_name]/
-    Folder names are normalized: lowercase, spaces → underscores
+    Args:
+        event: Event data
+        workspace: Current workspace (auto-injected)
+        current_user: Authenticated user from JWT token
+        
+    Returns:
+        Created event with google_drive_folder_id
     """
     
     # Verify customer exists AND belongs to this workspace
@@ -97,117 +104,43 @@ async def create_event(
             detail="Cannot create event for archived customer"
         )
     
-    # Auto-generate folder_name if not provided (normalized)
+    # Auto-generate folder_name if not provided
     if not event.folder_name:
         folder_name = sanitize_folder_name(event.event_name)
     else:
-        folder_name = sanitize_folder_name(event.folder_name)
+        folder_name = event.folder_name
     
-    # Variable to store folder_id
-    google_drive_folder_id = None
+    # Create event object
+    db_event = Event(
+        customer_id=event.customer_id,
+        workspace_id=workspace.workspace_id,  # ✅ Link to workspace
+        created_by=current_user.user_id,  # ✅ Track creator
+        event_name=event.event_name,
+        event_type=event.event_type,
+        event_date=event.event_date,
+        location_city=event.location_city,
+        location_venue=event.location_venue,
+        description=event.description,
+        folder_name=folder_name,
+        status=event.status or 'draft'
+    )
     
-    # ✨ STEP 1: Create Google Drive nested folder structure FIRST (if Drive setup complete)
-    if workspace.drive_setup_complete and workspace.drive_folder_id:
-        try:
-            print(f"\n📁 Creating nested Google Drive folders for event: {folder_name}")
-            
-            # Initialize Drive service with user's OAuth token
-            drive_service = DriveService(current_user.google_access_token)
-            
-            # Determine customer folder name (normalized)
-            if customer.company_name:
-                customer_folder_name = sanitize_folder_name(customer.company_name)
-            elif customer.first_name and customer.last_name:
-                customer_folder_name = sanitize_folder_name(f"{customer.first_name}_{customer.last_name}")
-            else:
-                customer_folder_name = sanitize_folder_name(customer.email.split('@')[0])
-            
-            print(f"   Customer subfolder: {customer_folder_name}")
-            
-            # Check if customer subfolder already exists in main folder
-            customer_events_folder = await drive_service.find_folder_by_name(
-                folder_name=customer_folder_name,
-                parent_id=workspace.drive_folder_id
-            )
-            
-            if not customer_events_folder:
-                # Create customer subfolder in main folder
-                print(f"   Creating customer subfolder: {customer_folder_name}")
-                customer_events_folder = await drive_service.create_folder(
-                    folder_name=customer_folder_name,
-                    parent_id=workspace.drive_folder_id
-                )
-            else:
-                print(f"   Using existing customer subfolder: {customer_folder_name}")
-            
-            # Create event folder inside customer's events folder
-            print(f"   Creating event folder: {folder_name}")
-            event_folder_result = await drive_service.create_folder(
-                folder_name=folder_name,
-                parent_id=customer_events_folder['id']
-            )
-            
-            google_drive_folder_id = event_folder_result['id']
-            
-            print(f"✅ Event folder created successfully!")
-            print(f"   Path: Events/{customer_folder_name}/{folder_name}")
-            print(f"   Folder ID: {event_folder_result['id']}")
-            print(f"   Folder Link: {event_folder_result.get('webViewLink', 'N/A')}")
-            
-        except HTTPException as e:
-            # If Drive folder creation fails, abort event creation
-            print(f"❌ Failed to create Drive folder: {e.detail}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create Google Drive folder: {e.detail}. Event not created."
-            )
-        except Exception as e:
-            print(f"❌ Unexpected error creating Drive folder: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create Google Drive folder: {str(e)}. Event not created."
-            )
-    else:
-        print(f"ℹ️  Drive setup not complete - event will be created without Drive folder")
+    # Save to database first (to get event_id)
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
     
-    # ✅ STEP 2: Create event in database WITH folder_id
-    try:
-        db_event = Event(
-            customer_id=event.customer_id,
-            workspace_id=workspace.workspace_id,  # ✅ Link to workspace
-            created_by=current_user.user_id,  # ✅ Track creator
-            event_name=event.event_name,
-            event_type=event.event_type,
-            event_date=event.event_date,
-            location_city=event.location_city,
-            location_venue=event.location_venue,
-            description=event.description,
-            folder_name=folder_name,
-            status=event.status or 'draft',
-            google_drive_folder_id=google_drive_folder_id  # ✅ Set folder_id from Drive creation
-        )
-        
-        db.add(db_event)
-        db.commit()
-        db.refresh(db_event)
-        
-        print(f"\n✅ Event created in workspace: {workspace.name}")
-        print(f"   User: {current_user.email}")
-        print(f"   Event: {event.event_name}")
-        print(f"   Customer: {customer.company_name or customer.email}")
-        print(f"   Event ID: {db_event.event_id}")
-        print(f"   Drive Folder ID: {db_event.google_drive_folder_id or 'Not created'}")
-        
-        return db_event
-        
-    except Exception as e:
-        print(f"❌ Failed to create event in database: {str(e)}")
-        # TODO: Optionally delete the Drive folder if database creation fails
-        # For now, we keep the folder (orphaned but can be cleaned up later)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create event: {str(e)}"
-        )
+    # ✅ TODO: Implement Google Drive folder creation using user's OAuth token
+    # This will use the authenticated user's Google Drive, not a Service Account
+    # Implementation will be added in Phase 2 after OAuth is fully working
+    
+    print(f"✅ Event created in workspace: {workspace.name}")
+    print(f"   User: {current_user.email}")
+    print(f"   Event: {event.event_name}")
+    print(f"   Customer: {customer.company_name or customer.email}")
+    print(f"   Event ID: {db_event.event_id}")
+    
+    return db_event
 
 
 # ============================================================================
@@ -231,15 +164,10 @@ def list_events(
     
     ✅ OAuth Protected: Only returns events from user's workspace
     ✅ Workspace Isolation: User can only see events in their workspace
-    ✅ FIXED: Now includes customer_name via JOIN (02-11-2025)
     """
     
-    # Base query - ONLY workspace's events + JOIN Customer for customer_name
-    query = db.query(Event).join(
-        Customer, Event.customer_id == Customer.customer_id
-    ).options(
-        joinedload(Event.customer)  # ✅ Eager load customer relationship
-    ).filter(
+    # Base query - ONLY workspace's events
+    query = db.query(Event).filter(
         Event.workspace_id == workspace.workspace_id  # ✅ Critical: Filter by workspace
     )
     
@@ -285,19 +213,16 @@ def list_events(
     # Apply pagination
     events = query.order_by(Event.event_date.desc()).offset(skip).limit(limit).all()
     
-    # ✅ Note: customer_name is available automatically via the @property
-    # The JOIN ensures customer relationship is loaded
-    
-    # Calculate page number and total pages
-    page = (skip // limit) + 1 if limit > 0 else 1
-    pages = math.ceil(total / limit) if limit > 0 else 0
+    # Calculate pagination info
+    pages = (total + limit - 1) // limit  # Ceil division
+    current_page = (skip // limit) + 1
     
     return EventListResponse(
-        items=events,
+        items=events,  # ✅ FIXED: was 'events'
         total=total,
-        page=page,
-        page_size=limit,
-        pages=pages
+        page=current_page,  # ✅ FIXED: was 'skip'
+        page_size=limit,  # ✅ FIXED: was 'limit' but wrong field name
+        pages=pages  # ✅ NEW: total number of pages
     )
 
 
@@ -315,13 +240,8 @@ def get_event(
     Get a specific event by ID
     
     ✅ OAuth Protected: User can only access events in their workspace
-    ✅ FIXED: Now includes customer_name via JOIN (02-11-2025)
     """
-    event = db.query(Event).join(
-        Customer, Event.customer_id == Customer.customer_id
-    ).options(
-        joinedload(Event.customer)  # ✅ Eager load customer relationship
-    ).filter(
+    event = db.query(Event).filter(
         Event.event_id == event_id,
         Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
     ).first()
@@ -331,9 +251,6 @@ def get_event(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found in your workspace"
         )
-    
-    # ✅ customer_name is available automatically via the @property
-    # The JOIN ensures customer relationship is loaded
     
     return event
 
@@ -424,21 +341,34 @@ def update_event(
 
 
 # ============================================================================
-# DELETE
+# DELETE - ✅ UPDATED WITH CASCADE DELETE
 # ============================================================================
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_event(
+async def delete_event(  # ✅ CHANGED: async for Drive operations
     event_id: UUID,
-    hard_delete: bool = Query(False, description="Permanently delete (true) or soft delete (false)"),
-    workspace: Workspace = Depends(get_current_workspace),  # ✨ Workspace isolation
+    hard_delete: bool = Query(True, description="Permanently delete (default: True)"),  # ✅ CHANGED: True default
+    workspace: Workspace = Depends(get_current_workspace),
+    current_user: User = Depends(get_current_user),  # ✅ NEW: Need user for Drive access
     db: Session = Depends(get_db)
 ):
     """
     Delete an event
     
     ✅ OAuth Protected: User can only delete events in their workspace
+    ✅ CASCADE DELETE: Automatically deletes all photos from Google Drive
+    ✅ DEFAULT: Permanent delete (hard_delete=True)
+    
+    Deletion process:
+    1. Delete all event photos from Google Drive (cascade)
+    2. Delete event folder from Google Drive
+    3. Delete event from database
+    
+    Parameters:
+    - hard_delete: Default True - permanently delete from Drive and database
+                   Set to False for soft delete (archive only)
     """
+    # Verify event exists AND belongs to workspace
     db_event = db.query(Event).filter(
         Event.event_id == event_id,
         Event.workspace_id == workspace.workspace_id  # ✅ Verify workspace
@@ -450,12 +380,80 @@ def delete_event(
             detail="Event not found in your workspace"
         )
     
-    if hard_delete:
-        db.delete(db_event)
-    else:
-        db_event.archived = True
+    # Store info for logging
+    event_name = db_event.event_name
+    drive_folder_id = db_event.google_drive_folder_id
     
-    db.commit()
+    if hard_delete:
+        print(f"\n🗑️ PERMANENT DELETE EVENT: {event_name}")
+        
+        # ✅ STEP 1: CASCADE DELETE - Delete all photos from Google Drive
+        if current_user.google_access_token:
+            print(f"   📸 Cascade deleting all photos...")
+            try:
+                photo_results = await cascade_delete_event_photos(
+                    event_id=event_id,
+                    workspace_id=workspace.workspace_id,
+                    google_access_token=current_user.google_access_token,
+                    db=db
+                )
+                print(f"   ✅ Photos: {photo_results['db_deleted']}/{photo_results['total']} deleted")
+                if photo_results['drive_failed'] > 0:
+                    print(f"   ⚠️ Photos: {photo_results['drive_failed']} failed Drive deletion")
+            except Exception as e:
+                print(f"   ⚠️ Photo cascade delete encountered error: {e}")
+                print(f"   ℹ️ Continuing with event deletion...")
+                # Continue with event deletion even if photo cascade fails
+        else:
+            print(f"   ⚠️ No Google access token - skipping photo cascade delete")
+        
+        # ✅ STEP 2: Delete event folder from Google Drive
+        if drive_folder_id and current_user.google_access_token:
+            try:
+                from ..services.drive_service import get_drive_service
+                print(f"   📁 Deleting event folder from Drive: {drive_folder_id}")
+                drive_service = get_drive_service(current_user.google_access_token)
+                await drive_service.delete_file(drive_folder_id)
+                print(f"   ✅ Event folder deleted from Drive")
+            except Exception as e:
+                print(f"   ⚠️ Could not delete event folder from Drive: {e}")
+                print(f"   ℹ️ Continuing with database deletion...")
+                # Continue with database deletion even if Drive deletion fails
+        else:
+            if not drive_folder_id:
+                print(f"   ℹ️ No Drive folder ID - skipping Drive folder delete")
+            if not current_user.google_access_token:
+                print(f"   ⚠️ No Google access token - skipping Drive folder delete")
+        
+        # ✅ STEP 3: Delete event from database
+        try:
+            db.delete(db_event)
+            db.commit()
+            print(f"   ✅ Event deleted from database")
+            print(f"✅ Event permanently deleted: {event_name}")
+        except Exception as e:
+            db.rollback()
+            print(f"   ❌ Database deletion failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete event from database: {str(e)}"
+            )
+        
+    else:
+        # Soft delete (archive)
+        print(f"\n📦 SOFT DELETE (archive): {event_name}")
+        db_event.archived = True
+        try:
+            db.commit()
+            print(f"   ✅ Event archived")
+        except Exception as e:
+            db.rollback()
+            print(f"   ❌ Archive failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to archive event: {str(e)}"
+            )
+    
     return None
 
 

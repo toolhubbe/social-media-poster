@@ -6,6 +6,7 @@ Full Path: C:/Users/DASAP/Documents/social_media_poster/social_media_poster_back
 Google OAuth 2.0 configuration and settings
 
 ✅ FIX APPLIED: Added extra='ignore' to allow other environment variables
+✅ PHOTO UPLOAD FIX: Added explicit drive.file scope for uploads
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,9 +72,10 @@ class OAuthSettings(BaseSettings):
             "openid",
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/drive",  # Full Drive access
+            "https://www.googleapis.com/auth/drive.file",  # ✅ NEW: Files created by app
+            "https://www.googleapis.com/auth/drive",  # ✅ KEEP: Full Drive access for folder management
         ],
-        description="Required OAuth 2.0 scopes"
+        description="Required OAuth 2.0 scopes for photo uploads"
     )
     
     # ===================================================================
@@ -301,6 +303,7 @@ def validate_oauth_config():
         print(f"   Client ID: {settings.GOOGLE_CLIENT_ID[:20]}...")
         print(f"   Redirect URI: {settings.OAUTH_REDIRECT_URI}")
         print(f"   Scopes: {len(settings.GOOGLE_OAUTH_SCOPES)} configured")
+        print(f"   Scopes list: {', '.join(settings.GOOGLE_OAUTH_SCOPES)}")
         
         return True
         
